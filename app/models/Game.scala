@@ -16,8 +16,8 @@ case class Game (
   subtypeId:Int,
   status:String,
   created:Date = new Date(),
-  started:Date,
-  finished:Date,
+  started:Option[Date],
+  finished:Option[Date],
   profiles:List[Profile] = Nil
 )
 

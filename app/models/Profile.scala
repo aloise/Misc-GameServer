@@ -14,10 +14,10 @@ case class Profile (
   user:User,
   application:Application,
   created:Date = new Date,
-  lastSeen:Date,
-  platform:Int,
-  rating:Int,
-  karma:Int
+  lastSeen:Date = new Date,
+  platform:Int = 0,
+  rating:Int = 0,
+  karma:Int = 0
 )
 
 object Profile extends ModelCompanion[Profile, ObjectId] {
