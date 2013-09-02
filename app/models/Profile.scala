@@ -11,8 +11,8 @@ import models.MongoContext._
 
 case class Profile (
   id: ObjectId = new ObjectId,
-  user:User,
-  application:Application,
+  user:ObjectId, // User
+  application: ObjectId, // Application
   created:Date = new Date,
   lastSeen:Date = new Date,
   platform:Int = 0,

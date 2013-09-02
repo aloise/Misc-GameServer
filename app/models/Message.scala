@@ -11,9 +11,9 @@ import models.MongoContext._
 
 case class Message (
   id: ObjectId = new ObjectId,
-  sender:Profile,
-  recipient:List[Profile],
-  game:Game,
+  sender:ObjectId, // GameProfile
+  recipient:List[ObjectId], // GameProfile
+  game: ObjectId, // Game
   messageType: String,
   created:Date = new Date,
   data: DBObject

@@ -12,13 +12,13 @@ import models.MongoContext._
 
 case class Game (
   id: ObjectId = new ObjectId,
-  application:Application,
+  application:ObjectId,
   subtypeId:Int,
   status:String,
   created:Date = new Date(),
   started:Option[Date],
   finished:Option[Date],
-  profiles:List[Profile] = Nil
+  gameProfiles:List[GameProfile] = Nil
 )
 
 object Game extends ModelCompanion[Game, ObjectId] {

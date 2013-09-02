@@ -12,7 +12,7 @@ import models.MongoContext._
 case class GameProfile (
   id: ObjectId = new ObjectId,
   game:Game,
-  profile:Profile,
+  profile:ObjectId,
   status:String,
   rating:Int,
   karma:Int,
