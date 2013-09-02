@@ -1,5 +1,28 @@
-@(message: String = "")@main("Welcome to Play 2.1") {
+@(message: String = "")@main("Websocket API test") {
     
-    Game Server
-    
+    <script language="javascript" type="text/javascript">
+
+    var wsUri = "http://localhost:9005/ws_test";
+
+
+    var socket = io.connect(wsUri, { transports: ["websoket"] });
+    socket.on('connect', function(){
+
+        socket.on('event', function(data){
+            console.log(data);
+        });
+
+        socket.on('disconnect', function(){
+
+        });
+    });
+
+    </script>
+
+    <h2>WebSocket Test</h2>
+
+    <div id="output"></div>
+
+
+
 }

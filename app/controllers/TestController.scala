@@ -14,7 +14,7 @@ object TestController extends Controller {
     Ok(views.html.test.index())
   }
 
-  def addUser = Action {
+/*  def addUser = Action {
 
     // val user = User( username = "aloise")
 //    User.insert(user)
@@ -44,7 +44,7 @@ object TestController extends Controller {
     )
 
     Ok(views.html.test.addUser())
-  }
+  }*/
 
   def listUsers = Action {
 
