@@ -12,7 +12,8 @@ object ApplicationBuild extends Build {
     // jdbc,
     // anorm,
      "se.radley" %% "play-plugins-salat" % "1.2",
-    "com.novus" %% "salat" % "1.9.2"
+     "com.novus" %% "salat" % "1.9.2",
+     "com.imaginea" % "socket.io.play_2.9.1" % "0.0.5-SNAPSHOT"
   )
 
 
@@ -20,7 +21,8 @@ object ApplicationBuild extends Build {
     // Add your own project settings here
     routesImport += "se.radley.plugin.salat.Binders._",
     templatesImport += "org.bson.types.ObjectId",
-    resolvers += Resolver.sonatypeRepo("snapshots")
+    resolvers += Resolver.sonatypeRepo("snapshots"),
+    resolvers += "OSS Repo" at "https://oss.sonatype.org/content/repositories/snapshots"
   )
 
 }

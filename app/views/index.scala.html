@@ -5,7 +5,7 @@
     var wsUri = "http://localhost:9005/ws_test";
 
 
-    var socket = io.connect(wsUri, { transports: ["websoket"] });
+    var socket = io.connect(wsUri, { transports: ["websocket"] });
     socket.on('connect', function(){
 
         socket.on('event', function(data){
