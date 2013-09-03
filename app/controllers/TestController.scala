@@ -18,7 +18,7 @@ object TestController extends Controller {
 
     // val user = User( username = "aloise")
 //    User.insert(user)
-    val app = models.Application(new ObjectId(), "app" )
+    val app = models.application(new ObjectId(), "app" )
 
     val profile = Profile(
       new ObjectId(),

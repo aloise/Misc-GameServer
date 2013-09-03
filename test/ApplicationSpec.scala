@@ -12,7 +12,7 @@ import play.api.test.Helpers._
  */
 class ApplicationSpec extends Specification {
   
-  "Application" should {
+  "application" should {
     
     "send 404 on a bad request" in {
       running(FakeApplication()) {

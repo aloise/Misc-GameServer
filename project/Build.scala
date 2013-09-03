@@ -11,9 +11,11 @@ object ApplicationBuild extends Build {
     // Add your project dependencies here,
     // jdbc,
     // anorm,
+//     "com.jolbox" % "bonecp" % "0.8.0-rc1",
+//     "org.reflections" % "reflections" % "0.9.8",
      "se.radley" %% "play-plugins-salat" % "1.2",
-     "com.novus" %% "salat" % "1.9.2",
-     "com.imaginea" % "socket.io.play_2.9.1" % "0.0.5-SNAPSHOT"
+     "com.novus" %% "salat" % "1.9.2"
+     // "com.imaginea" % "socket.io.play_2.9.1" % "0.0.5-SNAPSHOT"
   )
 
 

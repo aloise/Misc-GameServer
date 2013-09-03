@@ -12,7 +12,7 @@ import models.MongoContext._
 case class Profile (
   id: ObjectId = new ObjectId,
   user:ObjectId, // User
-  application: ObjectId, // Application
+  application: ObjectId, // application
   created:Date = new Date,
   lastSeen:Date = new Date,
   platform:Int = 0,
