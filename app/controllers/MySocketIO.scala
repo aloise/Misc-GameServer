@@ -14,14 +14,6 @@ import akka.actor._
 import socketio.{SocketIOController, SocketIOActor}
 
 
-/**
- * Created with IntelliJ IDEA.
- * User: rohit
- * Date: 5/14/12
- * Time: 10:11 AM
- * To change this template use File | Settings | File Templates.
- */
-
 object MySocketIOController extends SocketIOController {
   lazy val socketIOActor: ActorRef = {
     Akka.system.actorOf(Props[MySocketIO])
@@ -30,6 +22,11 @@ object MySocketIOController extends SocketIOController {
 
 
 class MySocketIO extends SocketIOActor {
+
+  override def receive = {
+    case message => super.receive(message)
+  }
+
   def processMessage: PartialFunction[(String, (String, String, Any)), Unit] = {
 
     //Process regular message
