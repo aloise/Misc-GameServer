@@ -2,6 +2,8 @@ package actors.messages.game.requests
 
 import models.GameProfile
 import play.api.libs.json.JsValue
+import java.util.Date
+import org.bson.types.ObjectId
 
 /**
  * User: aloise
@@ -10,10 +12,14 @@ import play.api.libs.json.JsValue
  */
 // Game Actor will receive following messages
 
-abstract class BasicRequest(val sessionId:String, val from:GameProfile)
+case class RequestInfo(sessionId:String, from:GameProfile, date:Date)
 
-case class Join(sessionId:String, from:GameProfile) extends BasicRequest(sessionId, from)
-case class Leave(sessionId:String, from:GameProfile) extends BasicRequest
+abstract class Request(val request:RequestInfo)
+
+
+case class Join(request:RequestInfo) extends Request(request)
+case class Leave(request:RequestInfo) extends Request(request)
 
 // empty list means Game-Global Message
-case class Request(to:List[GameProfile], data:JsValue ) extends BasicRequest
+case class Action(request:RequestInfo, data:JsValue ) extends Request(request)
+case class Chat(request:RequestInfo, to:List[ObjectId], message:String ) extends Request(request)
