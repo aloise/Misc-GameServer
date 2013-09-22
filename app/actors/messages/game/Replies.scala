@@ -1,7 +1,7 @@
-package actors.messages.game.replies
+package actors.messages.game
 
 import play.api.libs.json.JsValue
-import actors.messages.game.requests.{Request}
+import actors.messages.game.Request
 
 /**
  * User: aloise
