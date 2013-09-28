@@ -10,6 +10,8 @@ import messages._
  */
 class Game( val game:models.Game) extends Actor {
 
+  var users:Map[Int,ActorRef] = Map()
+
   def receive = {
     case messages.Join(_) => sender ! Unit
   }
