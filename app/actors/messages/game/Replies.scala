@@ -11,7 +11,7 @@ import actors.messages.game.Request
 
 // Game Actor will send following messages
 
-abstract class BasicReply(request:Request)
+abstract class BasicReply(request:Request) extends
 
 // general replies
 case class Ok(request:Request) extends BasicReply(request)

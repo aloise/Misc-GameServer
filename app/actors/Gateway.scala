@@ -11,7 +11,11 @@ import play.api.libs.json.{Json, JsValue}
 class Gateway extends SocketIOActor {
 
   override def receive = {
+    // write a response
+    case r:actors.messages.Response => Json.obj('success -> true)
+    // process an input message
     case message => super.receive(message)
+
   }
 
   def processMessage: PartialFunction[(String, (String, String, Any)), Unit] = {
