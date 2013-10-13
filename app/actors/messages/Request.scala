@@ -11,23 +11,37 @@ import play.api.libs.json._
  */
 
 
-case class Session(id:String)
+case class Session(id:String, userId:Option[Int])
 
-case class Request(
-  event:String, // event name
-  session: Session, // socket-io provided session id
-  applicationId:Option[Int], // target application id
-  gameId:Option[Int], // target game id
-  userId:Option[Int], // source user id
-  namespace: String, // event namespace
-  date:Date,
-  data:JsValue // event data
-)
-
-object Session {
-  implicit val json = Json.format[Session]
+abstract class Request{
+  def event:String // event name
+  def session: Session // socket-io provided session id
+  def applicationId:Option[Int] // target application id
+  def gameId:Option[Int] // target game id
+  def namespace: String // event namespace
+  def date:Date
+  def data:JsValue // event data
 }
 
-object Request {
-  implicit val json = Json.format[Request]
-}
+case class GeneralRequest(
+   override val event:String, // event name
+   override val session: Session, // socket-io provided session id
+   override val applicationId:Option[Int], // target application id
+   override val gameId:Option[Int], // target game id
+   override val namespace: String, // event namespace
+   override val date:Date,
+   override val data:JsValue // event data
+) extends Request
+
+// a very specific case
+case class LoginRequest(
+  override val event:String, // event name
+  override val session: Session, // socket-io provided session id
+  override val applicationId:Option[Int], // target application id
+  override val gameId:Option[Int], // target game id
+  override val namespace: String, // event namespace
+  override val date:Date,
+  override val data:JsValue, // event data extends Request(
+  user:models.User
+) extends Request
+

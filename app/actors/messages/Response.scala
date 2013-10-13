@@ -8,8 +8,7 @@ import play.api.libs.json.JsValue
  * Time: 10:54 PM
  */
 
-abstract class Recipient
-case class RecipientList(recipients:Seq[Session]) extends Recipient
+case class Recipient(recipient:Session)
 
 
 case class Response(
