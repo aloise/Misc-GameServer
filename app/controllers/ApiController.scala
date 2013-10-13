@@ -6,6 +6,7 @@ import play.api.libs.iteratee.{Enumerator, Iteratee}
 import socketio.SocketIOController
 import akka.actor.{Props, ActorRef}
 import play.api.libs.concurrent.Akka
+import play.api.Play.current
 
 object ApiController extends SocketIOController {
 

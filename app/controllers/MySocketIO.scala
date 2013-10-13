@@ -60,7 +60,7 @@ class MySocketIO extends SocketIOActor {
 
     case ("connected", (sessionId: String, namespace: String, msg: String)) =>{
       println("New session created . .  .")
-      send(sessionId, "welcome");
+      send(sessionId, "welcome")
 
     }
 

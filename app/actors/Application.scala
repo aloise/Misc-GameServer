@@ -1,15 +1,16 @@
 package actors
 
-import akka.actor._
+import akka.actor.{ActorRef, Actor}
 import messages._
 import scala.collection.mutable
 
-class Application extends Actor {
+class Application(gateway:ActorRef, application:models.Application) extends Actor {
 
-  var games:Map[Int, ActorRef] = mutable.Map[Int,ActorRef]
+  val games = mutable.HashMap[Int, ActorRef]()
+  val users = mutable.HashMap[Session, models.User]()
 
   def receive = {
-
+    case r:messages.Response => gateway ! r
   }
 
 

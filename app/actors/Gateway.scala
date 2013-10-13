@@ -2,6 +2,9 @@ package actors
 
 import socketio.SocketIOActor
 import play.api.libs.json.{Json, JsValue}
+import actors.messages.{Session, Recipient, Request}
+import scala.collection.mutable
+import akka.actor.ActorRef
 
 /**
  * User: aloise
@@ -10,9 +13,15 @@ import play.api.libs.json.{Json, JsValue}
  */
 class Gateway extends SocketIOActor {
 
+
+  // map all users to sessionIds
+  val users = mutable.HashMap[Session, models.User]()
+
+  val applications = mutable.HashMap[Int, ActorRef]()
+
   override def receive = {
     // write a response
-    case r:actors.messages.Response => Json.obj('success -> true)
+    case actors.messages.Response( request: Request, recipients: Recipient, data:JsValue ) => processResponse(request, recipients, data)
     // process an input message
     case message => super.receive(message)
 
@@ -45,5 +54,14 @@ class Gateway extends SocketIOActor {
 
     }
 
+    // process the response - route the message
+
+
   }
+
+
+  def processResponse(request: Request, recipients: Recipient, value: JsValue) = {
+
+  }
+
 }
