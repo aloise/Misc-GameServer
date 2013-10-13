@@ -1,25 +1,20 @@
 package models
 
 import play.api.Play.current
-import java.util.Date
-import com.novus.salat._
-import com.novus.salat.annotations._
-import com.novus.salat.dao._
-import com.mongodb.casbah.Imports._
-import se.radley.plugin.salat._
-import models.MongoContext._
+import org.joda.time.DateTime
+import reactivemongo.bson._
 
 case class GameProfile (
-  id: ObjectId = new ObjectId,
+  id: Option[BSONObjectID],
   game:Game,
-  profile:ObjectId,
+  profile:BSONObjectID,
   status:String,
   rating:Int,
   karma:Int,
-  created:Date = new Date,
-  completed:Date
+  created:DateTime = new DateTime,
+  completed:DateTime
 )
 
-object GameProfile extends ModelCompanion[GameProfile, ObjectId] {
-  val dao = new SalatDAO[GameProfile, ObjectId](collection = mongoCollection("game_profiles")) {}
+object GameProfile extends Model{
+
 }

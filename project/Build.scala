@@ -22,8 +22,8 @@ object ApplicationBuild extends Build {
 
   val main = play.Project(appName, appVersion, appDependencies).settings(
     // Add your own project settings here
-    routesImport += "se.radley.plugin.salat.Binders._",
-    templatesImport += "org.bson.types.ObjectId",
+//    routesImport += "se.radley.plugin.salat.Binders._",
+//    templatesImport += "org.bson.types.ObjectId",
     resolvers += Resolver.sonatypeRepo("snapshots"),
     resolvers += "OSS Repo" at "https://oss.sonatype.org/content/repositories/snapshots"
   )

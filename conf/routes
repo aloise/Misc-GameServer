@@ -9,9 +9,6 @@ GET        /ws                                controllers.ApiController.index
 
 #GET        /ws_test                           controllers.ApiController.websocketTest
 
-GET        /test                              controllers.TestController.index
-#GET        /test/add_user        controllers.TestController.addUser
-
 
 # Socket IO Connection stuff
 GET        /socket.io/1/$socketUrl<.*>        controllers.MySocketIOController.handler(socketUrl)
