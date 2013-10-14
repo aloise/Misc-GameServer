@@ -14,6 +14,6 @@ case class Message (
   data: BSONDocument
 )
 
-object Message extends Model{
+object Messages extends Collection[Message]("messages"){
 
 }

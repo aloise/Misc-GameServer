@@ -15,6 +15,6 @@ case class GameProfile (
   completed:DateTime
 )
 
-object GameProfile extends Model{
+object GameProfiles extends Collection[GameProfile]("game_profiles"){
 
 }

@@ -16,6 +16,6 @@ case class Profile (
   karma:Int = 0
 )
 
-object Profile extends Model{
+object Profiles extends Collection[Profile]("profiles"){
 
 }

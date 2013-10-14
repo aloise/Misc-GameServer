@@ -15,6 +15,6 @@ case class Game (
   gameProfiles:List[GameProfile] = Nil
 )
 
-object Game extends Model {
+object Games extends Collection[Game]("games") {
 
 }
