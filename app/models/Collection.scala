@@ -40,7 +40,7 @@ abstract class Collection[T](collectionName:String) extends JSONGenericHandlers 
   implicit def failoverStrategy: FailoverStrategy = FailoverStrategy()
 
 
-  def collection = db[JSONCollection](collectionName)
+  val collection = db[JSONCollection](collectionName)
 
   def name = collectionName
 

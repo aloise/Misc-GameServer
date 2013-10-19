@@ -5,7 +5,12 @@ import org.joda.time.DateTime
 import reactivemongo.bson._
 import play.api.Play
 import akka.util.Crypt
-import play.api.libs.json.{Writes, Reads, JsObject}
+import play.api.libs.json._
+import reactivemongo.api.Cursor
+import play.api.libs.iteratee.Iteratee
+import scala.concurrent.Future
+import play.modules.reactivemongo.json.BSONFormats._
+
 
 case class User(
   id: Option[BSONObjectID],
@@ -18,16 +23,30 @@ case class User(
 
 object Users extends Collection[User]("users"){
 
+  private val secret = Play.configuration.getString("users.secret")
 
-  def authenticate(uid:Int, signature:String) = {
-    val secret = Play.configuration.getString("users.secret")
+  val jsonFormat = Json.format[User]
+
+  def authenticate(uid:Int, signature:String):Future[Option[User]] = {
+
     if( Crypt.sha1( uid.toString + secret ) == signature ){
-      val query = BSONDocument( "uid" -> uid )
-      //val f: GenericQueryBuilder[JsObject, Reads, Writes] = collection.find(query)
-//      f.toList.map( _ )
-    } else {
 
+      val found = collection.find(Json.obj( "uid" -> uid )).one[JsValue]
+
+      found.map{
+        case Some(doc) =>
+            jsonFormat.reads(doc) match {
+              case JsSuccess(u:User,_) => Some(u)
+              case _ => None
+            }
+        case None => None
+       }
+
+
+    } else {
+      Future.successful(None)
     }
+
   }
 
 }

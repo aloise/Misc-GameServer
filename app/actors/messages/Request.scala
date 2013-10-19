@@ -18,30 +18,15 @@ abstract class Request{
   def session: Session // socket-io provided session id
   def applicationId:Option[Int] // target application id
   def gameId:Option[Int] // target game id
-  def namespace: String // event namespace
   def date:Date
   def data:JsValue // event data
 }
 
-case class GeneralRequest(
+case class GeneralRequest (
    override val event:String, // event name
    override val session: Session, // socket-io provided session id
    override val applicationId:Option[Int], // target application id
    override val gameId:Option[Int], // target game id
-   override val namespace: String, // event namespace
    override val date:Date,
    override val data:JsValue // event data
 ) extends Request
-
-// a very specific case
-case class LoginRequest(
-  override val event:String, // event name
-  override val session: Session, // socket-io provided session id
-  override val applicationId:Option[Int], // target application id
-  override val gameId:Option[Int], // target game id
-  override val namespace: String, // event namespace
-  override val date:Date,
-  override val data:JsValue, // event data extends Request(
-  user:models.User
-) extends Request
-

@@ -1,6 +1,6 @@
 package actors.messages
 
-import play.api.libs.json.JsValue
+import play.api.libs.json._
 
 /**
  * User: aloise
@@ -8,11 +8,23 @@ import play.api.libs.json.JsValue
  * Time: 10:54 PM
  */
 
-case class Recipient(recipient:Session)
+abstract class Recipient {
+  def get:Seq[Session]
+}
+
+case class SessionRecipient(recipient:Session) extends Recipient {
+  def get = List(recipient)
+}
 
 
 case class Response(
-  request: Request,
+  event:String,
   recipient: Recipient,
   data:JsValue
 )
+
+object ErrorResponse {
+  def apply( event:String, recipient: Recipient, errorMessage:String = "error") =
+    Response(event, recipient, Json.obj( "error" -> errorMessage ) )
+}
+
