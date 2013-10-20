@@ -9,8 +9,8 @@ object Application extends Controller {
     Ok(views.html.index("Your new application is ready."))
   }
 
-  def socketIoTest = Action { implicit request =>
-    Ok(views.html.application.socketIoTest())
+  def test = Action { implicit request =>
+    Ok(views.html.application.test())
   }
   
 }

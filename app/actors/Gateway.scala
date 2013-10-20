@@ -1,11 +1,11 @@
 package actors
 
-import socketio.SocketIOActor
+
 import play.api.libs.json._
 import actors.messages._
 import scala.collection.mutable
 import java.util.Date
-import akka.actor.ActorRef
+import akka.actor.{Actor, ActorRef}
 import models.{Users, User}
 import actors.messages.Session
 import actors.messages.Recipient
@@ -17,7 +17,7 @@ import play.api.libs.functional.syntax._
  * Date: 9/28/13
  * Time: 10:04 PM
  */
-class Gateway extends SocketIOActor {
+class Gateway extends Actor {
 
 
   // map all users to sessionIds
@@ -29,7 +29,7 @@ class Gateway extends SocketIOActor {
     // write a response
     case actors.messages.Response( event:String, recipients: Recipient, data:JsValue ) => processResponse(event, recipients, data)
     // process an input message
-    case message => super.receive(message)
+//    case message => super.receive(message)
 
   }
 

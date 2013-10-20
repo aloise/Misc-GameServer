@@ -1,0 +1,3 @@
+[submodule "public/javascripts/web-socket-js"]
+	path = public/javascripts/web-socket-js
+	url = https://github.com/gimite/web-socket-js.git
