@@ -3,61 +3,63 @@ package actors
 
 import play.api.libs.json._
 import actors.messages._
-import scala.collection.mutable
 import java.util.Date
-import akka.actor.{Actor, ActorRef}
+import akka.actor.{Props, Actor, ActorRef}
 import models.{Users, User}
-import actors.messages.Session
-import actors.messages.Recipient
+import actors.messages.Recipients
 import actors.messages.GeneralRequest
 import play.api.libs.functional.syntax._
+import scala.concurrent.duration._
+import actors.messages.UserSession.Session
+import akka.util.Timeout
+import akka.pattern.{ ask, pipe }
 
-/**
- * User: aloise
- * Date: 9/28/13
- * Time: 10:04 PM
- */
 class Gateway extends Actor {
 
+  private val receiverProps = Props[WebSocketReceiver]
+  private val senderProps = Props[WebSocketSender]
 
   // map all users to sessionIds
-  val users = mutable.HashMap[Session, models.User]()
+  var users = Map[Session, UserSession]()
 
-  val applications = mutable.HashMap[Int, ActorRef]()
+  var applications = Map[Int, ActorRef]()
 
   override def receive = {
     // write a response
-    case actors.messages.Response( event:String, recipients: Recipient, data:JsValue ) => processResponse(event, recipients, data)
-    // process an input message
-//    case message => super.receive(message)
+    case UserConnect(sessionId) => {
 
-  }
+      if(users.contains(sessionId)) sender ! UserConnectFailed(sessionId, "id already connected")
+      else {
+        implicit val timeout = Timeout(1000)
 
+        val receiveActor = context.actorOf(receiverProps, sessionId+"-receiver")
+        val sendActor = context.actorOf(senderProps, sessionId+"-sender")
 
+        val userConnectedMessage = (sendActor ? UserSenderActorInit(sessionId, receiveActor)).map{
+          case c: UserConnectAccepted =>
+            play.Logger.debug(s"Connected Member with ID:$sessionId")
 
+            users = users + (sessionId -> UserSession(sessionId, None, receiveActor, sendActor) )
 
-  def processMessage: PartialFunction[(String, (String, String, Any)), Unit] = {
+            c
+        }
 
-    //Handle event
-    case ("message", (sessionId: String, namespace: String, eventData: JsValue)) =>
-
-      processRequest( GeneralRequest(
-        namespace,
-        Session(sessionId, (eventData \ "userId").asOpt[Int] ),
-        (eventData \ "applicationId").asOpt[Int],
-        (eventData \ "gameId").asOpt[Int],
-        new Date(),
-        eventData
-      ))
-/*
-    case ("connected", (sessionId: String, namespace: String, msg: String)) =>{
-//      println("New session created . .  .")
-//      send(sessionId, "welcome");
+        userConnectedMessage pipeTo sender
+      }
 
     }
-*/
+
+    // broadcast the message
+    case r:actors.messages.Response => {
+      r.recipients.get.foreach {
+        users.get(_).foreach{
+          case UserSession(_,_, sender, _ ) => sender ! r
+        }
+      }
+    }
 
   }
+
 
   def processRequest(request: Request):Unit = request match {
     // process a special case - logout
@@ -67,7 +69,7 @@ class Gateway extends Actor {
     case _ => request.applicationId.map( applications.get( _ ).map( _ ! request ) )
   }
 
-  def processResponse(event:String, recipients: Recipient, value: JsValue) = {
+  def processResponse(event:String, recipients: Recipients, value: JsValue) = {
 
   }
 
@@ -75,21 +77,36 @@ class Gateway extends Actor {
 
   def processLoginRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
-
+    val msg = "login"
     val reader = (( __ \ "id").read[Int] and  ( __ \ "signature").read[String]).tupled
 
     request.data.validate[(Int,String)](reader).map{
-      case (id, signature) => Users.authenticate(id,signature)
-    }.recoverTotal( _ => self ! ErrorResponse( "login", SessionRecipient(request.session) ) )
+
+      case (id, signature) =>
+        Users.authenticate(id,signature).foreach {
+          case Some(u:models.User) => {
+            // update the user entry
+            users.get( request.sessionId ) match {
+              case Some(x) => {
+                users = users + ( request.sessionId -> x.copy(user = Some(u)) )
+              }
+              case None => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "user_session_is_missing" )
+            }
+
+          }
+          case None => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "user_not_found" )
+        }
+
+    }.recoverTotal( _ => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "invalid_format" ) )
 
   }
 
   def processLogoutRequest(request: Request) = {
-    users.get(request.session).map( u => {
+    users.get(request.sessionId).map( u => {
         // notify the app about the user logout
         request.applicationId.map( applications.get( _ ).map( _ ! request ) )
         // remove user from the list
-        users - request.session
+        users = users - request.sessionId
       }
     )
 

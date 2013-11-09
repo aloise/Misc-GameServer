@@ -3,6 +3,8 @@ package actors
 import akka.actor.{ActorRef, Actor}
 import messages._
 import scala.collection.mutable
+import actors.messages.UserSession.Session
+
 
 class Application(gateway:ActorRef, application:models.Application) extends Actor {
 

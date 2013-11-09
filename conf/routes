@@ -11,7 +11,7 @@ GET        /ws                                controllers.ApiController.index
 
 
 # Socket IO Connection stuff
-GET        /socket.io/1/$socketUrl<.*>        controllers.MySocketIOController.handler(socketUrl)
+GET     /app/gateway                                   controllers.ApiController.index
 
 #GET     /socket_io_test                         controllers.Application.socketIoTest
 
