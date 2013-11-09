@@ -13,6 +13,9 @@ import scala.concurrent.duration._
 import actors.messages.UserSession.Session
 import akka.util.Timeout
 import akka.pattern.{ ask, pipe }
+import play.api.libs.concurrent.Execution.Implicits._
+import scala.concurrent.duration._
+
 
 class Gateway extends Actor {
 
@@ -30,7 +33,7 @@ class Gateway extends Actor {
 
       if(users.contains(sessionId)) sender ! UserConnectFailed(sessionId, "id already connected")
       else {
-        implicit val timeout = Timeout(1000)
+        implicit val timeout = Timeout(30 seconds)
 
         val receiveActor = context.actorOf(receiverProps, sessionId+"-receiver")
         val sendActor = context.actorOf(senderProps, sessionId+"-sender")
@@ -49,11 +52,19 @@ class Gateway extends Actor {
 
     }
 
+    case req:actors.messages.Request => {
+      users.get(req.sessionId).foreach{
+        case UserSession(_,_,_, receiver) => receiver ! req
+      }
+    }
+
+
+
     // broadcast the message
-    case r:actors.messages.Response => {
-      r.recipients.get.foreach {
+    case response:actors.messages.Response => {
+      response.recipients.get.foreach {
         users.get(_).foreach{
-          case UserSession(_,_, sender, _ ) => sender ! r
+          case UserSession(_,_, sender, _ ) => sender ! response
         }
       }
     }

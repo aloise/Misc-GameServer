@@ -14,7 +14,7 @@ import actors.messages.UserSession.Session
 abstract class Message
 
 case class UserConnect(id: Session) extends Message
-case class UserConnectAccepted[A](id: Session, receiver: ActorRef, enumerator: Enumerator[A]) extends Message
+case class UserConnectAccepted(id: Session, receiver: ActorRef, enumerator: Enumerator[JsValue]) extends Message
 case class UserConnectFailed(id: Session, error: String) extends Message
 case class UserDisconnected(id:Session) extends Message
 

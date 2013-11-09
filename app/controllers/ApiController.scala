@@ -21,8 +21,8 @@ import actors.messages.UserConnectFailed
 import actors.messages.UserDisconnected
 import akka.pattern._
 import actors.messages.UserSession._
-
-
+import play.api.libs.concurrent.Execution.Implicits._
+import scala.concurrent.duration._
 
 
 object ApiController extends Controller {
@@ -31,61 +31,22 @@ object ApiController extends Controller {
 
   lazy val supervisor = Akka.system.actorOf(Props[Gateway])
 
-  lazy val gatewayActor: ActorRef = Akka.system.actorOf(Props[actors.Gateway])
+  def index = {
+
+    implicit val timeout = Timeout( 30 seconds )
 
 
-  /*
-  def index = WebSocket.async[JsValue] { request =>
-
-  // Log events to the console
-
-    val in = Iteratee.foreach[JsValue](println).map { _ =>
-      println("Disconnected")
-    }
-
-    // Send a single 'Hello!' message
-    val out = Enumerator[JsValue]( Json.obj("message" -> "Hello!"))
-
-    (in, out)
-
-  }
-  */
-
-
-
-  def index =  WebSocket.using[JsValue] { request =>
-
-
-    // Concurernt.broadcast returns (Enumerator, Concurrent.Channel)
-    val (out,channel) = Concurrent.broadcast[JsValue]
-
-    //log the message to stdout and send response back to client
-    val in = Iteratee.foreach[JsValue] {
-      msg => println(msg)
-        //the Enumerator returned by Concurrent.broadcast subscribes to the channel and will
-        //receive the pushed messages
-        val response = Json.obj("message" -> ("RESPONSE TO: " + (msg \ "message").as[String] ) )
-        // val response = "RESPONSE :" + msg
-        channel.push( response )
-    }
-    (in,out)
-  }
-
-
-  def index2 = {
-    implicit val timeout = Timeout( 1000 )
-
-
-    WebSocket.async[Payload]{ request =>
+    WebSocket.async[JsValue]{ request =>
 
       val sessionId = UserSession.random
 
       (supervisor ? UserConnect(sessionId) ).map {
 
-        case c: UserConnectAccepted[Payload] =>
-          val iteratee = Iteratee.foreach[Payload] { event =>
+        case c: UserConnectAccepted =>
+          val iteratee = Iteratee.foreach[JsValue] { event =>
 
-            c.receiver ! parseRequestJson(sessionId, event)
+//            c.receiver ! parseRequestJson(sessionId, event)
+            supervisor ! parseRequestJson(sessionId, event)
 
           }.map { _ =>
             supervisor ! UserDisconnected(sessionId)
@@ -96,11 +57,11 @@ object ApiController extends Controller {
           // Connection error
 
           // A finished Iteratee sending EOF
-          val iteratee = Done[Payload, Unit]( Json.obj("error" -> error), Input.EOF)
+//        val iteratee = Done[JsValue, Unit]( Json.obj(), Input.EOF)
+          val iteratee = Iteratee.skipToEof[JsValue]
 
           // Send an error and close the socket
-          val enumerator = Enumerator[Payload]( Json.obj("error" -> error) )
-            .andThen(Enumerator.enumInput(Input.EOF))
+          val enumerator = Enumerator[JsValue]( Json.obj("error" -> error) ).andThen(Enumerator.enumInput(Input.EOF))
 
           (iteratee, enumerator)
       }

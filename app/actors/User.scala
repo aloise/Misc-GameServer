@@ -1,6 +1,6 @@
 package actors
 
-import akka.actor.Actor
+import akka.actor.{ActorRef, Actor}
 import play.api.libs.json.JsValue
 import play.api.libs.iteratee.{Input, Concurrent}
 import actors.messages.{SingleRecipient, Response, UserConnectAccepted, UserSenderActorInit}
@@ -14,6 +14,8 @@ class WebSocketSender extends Actor {
 
 
   var channel: Option[Concurrent.Channel[JsValue]] = None
+  var application: Option[ActorRef] = None
+  var game:Option[ActorRef] = None
 
   def receive  = {
     case UserSenderActorInit(id, receiverActor) => {
@@ -26,11 +28,14 @@ class WebSocketSender extends Actor {
       sender ! UserConnectAccepted(id, receiverActor, enumerator)
     }
 
-//    case s: Send[Payload]        => channel.foreach(_.push(s.payload))
+//    case JoinApplication =>
+
+//    case JoinGame =>
+
+
 
     case s:actors.messages.Response => channel.foreach( _.push( s.toJson ) )
 
-//    case b: Broadcast[Payload]   => channel.foreach(_.push(b.payload))
 
 //    case Connected(id) => context.parent ! Broadcast[Payload](id, msgFormatter.connected(id))
 
