@@ -33,7 +33,7 @@ object Users extends Collection[User]("users"){
 
       val found = collection.find(Json.obj( "uid" -> uid )).one[JsValue]
 
-      found.flatMap{
+      found.flatMap {
         case Some(doc) =>
             jsonFormat.reads(doc) match {
               case JsSuccess(u:User,_) => Future.successful( Some(u) )
@@ -45,8 +45,8 @@ object Users extends Collection[User]("users"){
           val newUser = User( None, uid, username.getOrElse("user_"+uid) )
           collection.
             insert(  jsonFormat.writes( newUser ).as[JsObject] ).
-            map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError  }
-       }
+            map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError }
+      }
 
 
     } else {

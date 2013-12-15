@@ -90,21 +90,23 @@ class Gateway extends Actor {
   def processLoginOrUserCreateRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
     val msg = "login"
-    val reader = (( __ \ "id").read[Int] and  ( __ \ "signature").read[String]).tupled
+    val reader = (
+      ( __ \ "id").read[Int] and
+      ( __ \ "signature").read[String] and
+      ( __ \ "username").readNullable[String]
+    ).tupled
 
-    request.data.validate[(Int,String)](reader).map{
+    request.data.validate[(Int,String,Option[String])](reader).map{
 
-      case (id, signature) =>
-        Users.authenticateOrCreate(id,signature).foreach {
+      case (id, signature, maybeUsername) =>
+        Users.authenticateOrCreate( id, signature, maybeUsername).foreach {
           case Some(u:models.User) =>
             // update the user entry
             users.get( request.sessionId ) match {
               case Some(x) => users = users + ( request.sessionId -> x.copy(user = Some(u)) )
               case None => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "user_session_is_missing" )
             }
-
           case None => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "user_not_found" )
-
         }
 
     }.recoverTotal( _ => self ! ErrorResponse( msg, SingleRecipient(request.sessionId), "invalid_format" ) )
