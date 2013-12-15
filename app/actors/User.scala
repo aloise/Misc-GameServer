@@ -4,6 +4,7 @@ import akka.actor.{ActorRef, Actor}
 import play.api.libs.json.JsValue
 import play.api.libs.iteratee.{Input, Concurrent}
 import actors.messages.{SingleRecipient, Response, UserConnectAccepted, UserSenderActorInit}
+import play.api.libs.concurrent.Execution.Implicits._
 
 /**
  * User: aloise
@@ -11,6 +12,7 @@ import actors.messages.{SingleRecipient, Response, UserConnectAccepted, UserSend
  * Time: 11:16 PM
  */
 class WebSocketSender extends Actor {
+
 
 
   var channel: Option[Concurrent.Channel[JsValue]] = None

@@ -16,8 +16,8 @@ case class User(
   id: Option[BSONObjectID],
   uid:Int, // external user id
   username: String,
-  created: DateTime,
-  password:String
+  created: DateTime = new DateTime()
+//  password:String
 //  @Key("company_id")company: Option[ObjectId] = None
 )
 
@@ -27,19 +27,25 @@ object Users extends Collection[User]("users"){
 
   val jsonFormat = Json.format[User]
 
-  def authenticate(uid:Int, signature:String):Future[Option[User]] = {
+  def authenticateOrCreate(uid:Int, signature:String, username:Option[String] = None):Future[Option[User]] = {
 
     if( Crypt.sha1( uid.toString + secret ) == signature ){
 
       val found = collection.find(Json.obj( "uid" -> uid )).one[JsValue]
 
-      found.map{
+      found.flatMap{
         case Some(doc) =>
             jsonFormat.reads(doc) match {
-              case JsSuccess(u:User,_) => Some(u)
-              case _ => None
+              case JsSuccess(u:User,_) => Future.successful( Some(u) )
+              case _ => Future.successful( None )
             }
-        case None => None
+        case None =>
+
+          // create a user
+          val newUser = User( None, uid, username.getOrElse("user_"+uid) )
+          collection.
+            insert(  jsonFormat.writes( newUser ).as[JsObject] ).
+            map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError  }
        }
 
 

@@ -44,6 +44,9 @@ case class Response(
 object ErrorResponse {
   def apply( event:String, recipients: Recipients, errorMessage:String = "error") =
     Response(event, recipients, Json.obj( "error" -> errorMessage ) )
+
+  def apply( event:String, recipientSession: Session, errorMessage:String ) =
+    Response(event, SingleRecipient(recipientSession), Json.obj( "error" -> errorMessage ) )
 }
 
 
