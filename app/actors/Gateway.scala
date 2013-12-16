@@ -19,8 +19,8 @@ import scala.Some
 import actors.messages.SingleRecipient
 import actors.messages.GeneralRequest
 import actors.messages.UserConnectFailed
-import actors.messages.UserSenderActorInit
-import play.api.libs.iteratee.{Enumerator, Concurrent}
+import actors.messages.UserActorInit
+import play.api.libs.iteratee.{Input, Enumerator, Concurrent}
 import scala.concurrent.ExecutionContext
 
 
@@ -34,10 +34,11 @@ class Gateway extends Actor {
 
   var applications = Map[String, ActorRef]()
 
-  var userSockets = Map[SessionId, ( Enumerator[JsValue], Concurrent.Channel[JsValue])]()
+  var userSockets = Map[SessionId, Concurrent.Channel[JsValue] ]()
 
   override def receive = {
 
+    // Socket Events
     // process a user connection, create actors and writes the session.. user db info will be empty till the login
     case UserConnect(sessionId) =>
 
@@ -55,6 +56,8 @@ class Gateway extends Actor {
       disconnectUser(sessionId)
 
 
+
+
     case request@GeneralRequest("logout",_,_, _, _, _) => processLogoutRequest(request)
 
     case request@GeneralRequest("login",_,_,_,_,_) => processLoginOrUserCreateRequest(request)
@@ -66,7 +69,7 @@ class Gateway extends Actor {
     case response:Response =>
       // bypass directly to recipient sender actors, normally a gateway response message is just an error ( see processLoginOrUserCreateRequest )
       response.recipients.foreach { sessionId =>
-        users.get(sessionId).foreach{ _.sender ! response }
+        users.get(sessionId).foreach{ _.userActor ! response }
       }
 
   }
@@ -76,13 +79,37 @@ class Gateway extends Actor {
   def processLoginOrUserCreateRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
 
-    def error( msg:String ) = self ! ErrorResponse( msg, SingleRecipient(request.sessionId), msg )
+    val me = self
 
-    def processUserCreationByApplication( sessionId:SessionId, dbUser:models.User ) = {
+    def error( msg:String ) = me ! ErrorResponse( msg, SingleRecipient(request.sessionId), msg )
 
-      // check the userSocket existence and the  existence
+    def processUserCreationByApplication( applicationActor:ActorRef, sessionId:SessionId, dbUser:models.User ) = {
 
-      /*    implicit val timeout = Timeout(60 seconds)
+      implicit val timeout = Timeout(60 seconds)
+
+      // check the userSocket existence and the absence in already logged users list
+      userSockets.get(sessionId) match {
+        // it will trigger an user actor creation
+        case Some( channel ) =>
+          ( applicationActor ? Application.UserJoin( sessionId, dbUser, channel ) ).map{
+
+            case Application.UserJoinedSuccessfully(userSession) =>
+              // update the user session
+              // TODO - possibly a race condition in future ... synchronized might not be required
+              users.synchronized{
+                users = users + ( userSession.sessionId -> userSession )
+              }
+
+            case _ => disconnectUser( sessionId )
+          }.onFailure{
+            // timeout or whatever
+            case _ => disconnectUser( sessionId )
+          }
+        case None => error("user_socket_session_was_not_found")
+      }
+
+
+      /*
 
           val receiveActor = context.actorOf(receiverProps, sessionId+"-receiver")
           val sendActor = context.actorOf(senderProps, sessionId+"-sender")
@@ -109,12 +136,12 @@ class Gateway extends Actor {
 
     request.data.validate[(Int,String,Option[String] )](reader).map{
 
-      case (id, signature, maybeUsername, applicationId) =>
+      case (id, signature, maybeUsername ) =>
 
         request.applicationId.flatMap{ applications.get } match {
           case Some(applicationActor) =>
              Users.authenticateOrCreate( id, signature, maybeUsername).foreach {
-                case Some(dbUser) => processUserCreationByApplication(request.sessionId, dbUser)
+                case Some(dbUser) => processUserCreationByApplication(applicationActor, request.sessionId, dbUser)
                 case None => error( "user_not_found" )
               }
           case None => error( "application_not_found" )
@@ -141,22 +168,35 @@ class Gateway extends Actor {
 
     // create an enumerator and wait until the login message would be passed
     val enumerator:Enumerator[JsValue] = Concurrent.unicast[JsValue]{ channel =>
-      userSockets = userSockets + ( id -> ( enumerator, channel ) )
+      userSockets = userSockets + ( id -> channel )
     }
 
   }
 
-  def disconnectUser( userSessionId:SessionId ) =
-    users.get(userSessionId).map( u => {
+  def disconnectUser( userSessionId:SessionId ) = {
+
+    userSockets.get(userSessionId).map { case channel  =>
+
+      if( !users.contains(userSessionId)){
+        // we need to close the channel. This socket was not connected to an Application
+        channel.push(Input.EOF)
+      }
+      userSockets = userSockets - userSessionId
+    }
+
+
+    users.get(userSessionId).foreach( u => {
 
       // notify all apps about the user disconnect
-      applications.foreach( _._2 ! UserDisconnected( userSessionId ) )
+      // application will kill the actor and close the channel
+      applications.find( _._2 == u.application ).foreach( _._2 ! UserDisconnected( userSessionId ) )
 
       // remove user from the list
       users = users - userSessionId
-      userSockets = userSockets - userSessionId
+
     })
 
 
+  }
 
 }

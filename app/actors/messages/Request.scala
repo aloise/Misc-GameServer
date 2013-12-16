@@ -17,7 +17,7 @@ object UserSession {
   def random:SessionId = UUID.randomUUID().toString
 }
 
-case class UserSession(sessionId:SessionId, user:Option[models.User], userActor:ActorRef)
+case class UserSession(sessionId:SessionId, user: models.User, userActor:ActorRef, application: ActorRef)
 
 
 abstract class Request{
