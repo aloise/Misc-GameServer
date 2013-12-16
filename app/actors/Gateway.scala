@@ -13,15 +13,13 @@ import akka.util.Timeout
 import akka.pattern.{ ask, pipe }
 import play.api.libs.concurrent.Execution.Implicits._
 import scala.concurrent.duration._
-import actors.messages.UserConnect
-import actors.messages.UserConnectAccepted
+import scala.Some
+import play.api.libs.iteratee.{Input, Enumerator, Concurrent}
+import scala.concurrent.ExecutionContext
+import actors.messages.Response
 import scala.Some
 import actors.messages.SingleRecipient
 import actors.messages.GeneralRequest
-import actors.messages.UserConnectFailed
-import actors.messages.UserActorInit
-import play.api.libs.iteratee.{Input, Enumerator, Concurrent}
-import scala.concurrent.ExecutionContext
 
 
 class Gateway extends Actor {
@@ -32,39 +30,52 @@ class Gateway extends Actor {
   // map all users to sessionIds
   var users = Map[SessionId, UserSession]()
 
-  var applications = Map[String, ActorRef]()
+  var applications = Map[String, ( models.Application, ActorRef ) ]()
 
   var userSockets = Map[SessionId, Concurrent.Channel[JsValue] ]()
+
+
 
   override def receive = {
 
     // Socket Events
     // process a user connection, create actors and writes the session.. user db info will be empty till the login
-    case UserConnect(sessionId) =>
+    case Gateway.UserConnect(sessionId) =>
 
       if (users.contains(sessionId)) {
           // imho - it's an impossible case within a socket connection
-          sender ! UserConnectFailed(sessionId, "already_connected")
+          sender ! Gateway.UserConnectFailed(sessionId, "already_connected")
       } else {
 
          // process user connect
-        processUserConnect( sessionId )
+        val enumerator = processUserConnect( sessionId )
+        sender ! Gateway.UserConnectAccepted(sessionId, enumerator )
       }
 
-    case UserDisconnected(sessionId) =>
+    case Gateway.UserDisconnected(sessionId) =>
       // remove the user from the list and notify the app
       disconnectUser(sessionId)
 
-
-
-
+    // User request
     case request@GeneralRequest("logout",_,_, _, _, _) => processLogoutRequest(request)
 
     case request@GeneralRequest("login",_,_,_,_,_) => processLoginOrUserCreateRequest(request)
 
+    case Gateway.ApplicationCreate(appId) =>
+
+      import models.Applications.format
+
+      models.Applications.find( Json.obj("gid" -> appId ) ).map { apps =>
+        apps.headOption match {
+          case Some(app) =>
+            val applicationActor = context.actorOf( getApplicationActorProps(app) )
+            applications = applications + ( app.gid -> ( app, applicationActor ) )
+        }
+      }
+
     // route all other requests to the app by the applicationId in the request
     case request:actors.messages.Request => request.applicationId.flatMap( applications.get ).foreach{
-        _ ! request
+        _._2 ! request
       }
     case response:Response =>
       // bypass directly to recipient sender actors, normally a gateway response message is just an error ( see processLoginOrUserCreateRequest )
@@ -74,7 +85,7 @@ class Gateway extends Actor {
 
   }
 
-
+  def getApplicationActorProps(dbApplication:models.Application) = Props(classOf[actors.Application], dbApplication)
 
   def processLoginOrUserCreateRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
@@ -139,7 +150,7 @@ class Gateway extends Actor {
       case (id, signature, maybeUsername ) =>
 
         request.applicationId.flatMap{ applications.get } match {
-          case Some(applicationActor) =>
+          case Some( (_, applicationActor )) =>
              Users.authenticateOrCreate( id, signature, maybeUsername).foreach {
                 case Some(dbUser) => processUserCreationByApplication(applicationActor, request.sessionId, dbUser)
                 case None => error( "user_not_found" )
@@ -158,7 +169,7 @@ class Gateway extends Actor {
     // notify the app about the user logout
     // this event is translated into the UserDisconnected on the Application level.
     // User logout on Application level is an equivalent of the disconnect
-    request.applicationId.map( applications.get( _ ).map( _ ! UserDisconnected(request.sessionId) ) )
+    request.applicationId.map( applications.get( _ ).map( _._2 ! Gateway.UserDisconnected(request.sessionId) ) )
     // I don't like to disconnect here... It will be really disconnected on network event ( UserDisconnected )
 
   }
@@ -171,6 +182,7 @@ class Gateway extends Actor {
       userSockets = userSockets + ( id -> channel )
     }
 
+    enumerator
   }
 
   def disconnectUser( userSessionId:SessionId ) = {
@@ -189,7 +201,7 @@ class Gateway extends Actor {
 
       // notify all apps about the user disconnect
       // application will kill the actor and close the channel
-      applications.find( _._2 == u.application ).foreach( _._2 ! UserDisconnected( userSessionId ) )
+      applications.find( _._2._2 == u.application ).foreach( _._2._2 ! Gateway.UserDisconnected( userSessionId ) )
 
       // remove user from the list
       users = users - userSessionId
@@ -198,5 +210,17 @@ class Gateway extends Actor {
 
 
   }
+
+}
+
+object Gateway {
+  case class UserConnect(id: SessionId) extends InternalMessage
+  case class UserConnectAccepted(id: SessionId, enumerator: Enumerator[JsValue]) extends InternalMessage
+  case class UserConnectFailed(id: SessionId, error: String) extends InternalMessage
+
+  // it's sent to gateway and forwarded to the Application and the game
+  case class UserDisconnected(id:SessionId) extends InternalMessage
+
+  case class ApplicationCreate( id:String )
 
 }

@@ -8,7 +8,8 @@ import play.api.libs.json.JsValue
 import actors.Application.{UserJoinedSuccessfully, UserJoin}
 
 
-class Application(gateway:ActorRef, application:models.Application) extends Actor {
+// Gateway is the parent of the Application
+class Application( application:models.Application) extends Actor {
 
   var games = Map[Int, ActorRef]()
   var users = Map[SessionId, UserSession]()
@@ -28,7 +29,8 @@ class Application(gateway:ActorRef, application:models.Application) extends Acto
 
       sender ! UserJoinedSuccessfully( userSession )
 
-    case u@UserDisconnected(sessionId) =>
+
+    case u@Gateway.UserDisconnected(sessionId) =>
       users.get(sessionId).foreach{ user =>
 
         // notify games
@@ -46,8 +48,12 @@ class Application(gateway:ActorRef, application:models.Application) extends Acto
 
 object Application {
   // it's sent from the Gateway to the Application
-  case class UserJoin( id:SessionId, dbUser:models.User, channel: Concurrent.Channel[JsValue]) extends Message
+  case class UserJoin( id:SessionId, dbUser:models.User, channel: Concurrent.Channel[JsValue]) extends InternalMessage
 
-  case class UserJoinedSuccessfully( userSession:UserSession ) extends Message
+  case class UserJoinedSuccessfully( userSession:UserSession ) extends InternalMessage
+
+  case class GameCreate( name:String ) extends InternalMessage
+  case class GameCreatedSuccessfully( gameId:Int, game:ActorRef ) extends InternalMessage
+
 
 }

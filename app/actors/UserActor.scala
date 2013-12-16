@@ -3,7 +3,7 @@ package actors
 import akka.actor.{ActorRef, Actor}
 import play.api.libs.json.JsValue
 import play.api.libs.iteratee.{Input, Concurrent}
-import actors.messages.{SingleRecipient, Response, UserConnectAccepted, UserActorInit}
+import actors.messages.{SingleRecipient, Response}
 import play.api.libs.concurrent.Execution.Implicits._
 
 /**
@@ -16,7 +16,6 @@ class UserActor(channel:Concurrent.Channel[JsValue], application:ActorRef ) exte
   var game:Option[ActorRef] = None
 
   def receive  = {
-
 
     case s:actors.messages.Response => channel.push( s.toJson )
 

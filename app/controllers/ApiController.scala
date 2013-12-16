@@ -15,10 +15,6 @@ import actors.messages._
 import play.api.libs.iteratee.Input
 import java.util.{Date, UUID}
 import play.api.libs.iteratee.Step.Done
-import actors.messages.UserConnect
-import actors.messages.UserConnectAccepted
-import actors.messages.UserConnectFailed
-import actors.messages.UserDisconnected
 import akka.pattern._
 import actors.messages.UserSession._
 import play.api.libs.concurrent.Execution.Implicits._
@@ -40,9 +36,9 @@ object ApiController extends Controller {
 
       val sessionId = UserSession.random
 
-      (supervisor ? UserConnect(sessionId) ).map {
+      (supervisor ? Gateway.UserConnect(sessionId) ).map {
 
-        case c: UserConnectAccepted =>
+        case c: Gateway.UserConnectAccepted =>
 
           val iteratee = Iteratee.foreach[JsValue] { event =>
 
@@ -51,12 +47,12 @@ object ApiController extends Controller {
             supervisor ! parseRequestJson(sessionId, event)
 
           }.map { _ =>
-            supervisor ! UserDisconnected(sessionId)
+            supervisor ! Gateway.UserDisconnected(sessionId)
           }
 
           (iteratee, c.enumerator)
 
-        case UserConnectFailed(id, error) =>
+        case Gateway.UserConnectFailed(id, error) =>
           // Connection error
 
           // A finished Iteratee sending EOF

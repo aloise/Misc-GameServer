@@ -6,17 +6,23 @@ import reactivemongo.bson._
 import play.api.libs.json.{Writes, Reads, JsObject, Json}
 import reactivemongo.api.collections.GenericQueryBuilder
 import play.modules.reactivemongo.json.BSONFormats._
+import akka.actor.Props
 
 case class Application(
   id: Option[BSONObjectID],
-  name:String
-)
+  name:String,
+  gid:String
+) {
+
+
+
+}
 
 object Applications extends Collection[Application]("applications") {
 
 
 
-  def format = Json.format[Application]
+  implicit val format = Json.format[Application]
 
 
 }

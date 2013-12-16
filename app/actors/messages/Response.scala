@@ -13,18 +13,10 @@ import actors.messages.UserSession.SessionId
 
 
 // internal system messages that are not connected to the external user data
-abstract class Message
-
-case class UserConnect(id: SessionId) extends Message
-case class UserConnectAccepted(id: SessionId, receiver: ActorRef, enumerator: Enumerator[JsValue]) extends Message
-case class UserConnectFailed(id: SessionId, error: String) extends Message
-
-// it's sent to gateway and forwarded to the Application and the game
-case class UserDisconnected(id:SessionId) extends Message
+abstract class InternalMessage
 
 
 
-case class UserActorInit(id: SessionId)
 
 
 abstract class Recipients {
