@@ -33,7 +33,7 @@ object ApiController extends Controller {
 
   def index = {
 
-    implicit val timeout = Timeout( 30 seconds )
+    implicit val timeout = Timeout( 60 seconds )
 
 
     WebSocket.async[JsValue]{ request =>
@@ -51,6 +51,7 @@ object ApiController extends Controller {
           }.map { _ =>
             supervisor ! UserDisconnected(sessionId)
           }
+
           (iteratee, c.enumerator)
 
         case UserConnectFailed(id, error) =>
@@ -68,14 +69,14 @@ object ApiController extends Controller {
     }
   }
 
-  private def parseRequestJson(sessionId:Session, req:JsValue) = {
+  private def parseRequestJson(sessionId:SessionId, req:JsValue) = {
 
     // Handle event
 
     GeneralRequest(
       ( req \ "event" ).asOpt[String].getOrElse("_unknown"),
       sessionId,
-      ( req \ "applicationId").asOpt[Int],
+      ( req \ "applicationId").asOpt[String],
       ( req \ "gameId").asOpt[Int],
       new Date(),
       req \ "data"

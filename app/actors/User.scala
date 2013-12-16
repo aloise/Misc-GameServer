@@ -20,7 +20,7 @@ class WebSocketSender extends Actor {
   var game:Option[ActorRef] = None
 
   def receive  = {
-    case UserSenderActorInit(id, receiverActor) => {
+    case UserSenderActorInit(id, receiverActor) =>
       val me = self
       val enumerator = Concurrent.unicast[JsValue]{ c =>
         channel = Some(c)
@@ -28,7 +28,7 @@ class WebSocketSender extends Actor {
 //        me ! Connected(id)
       }
       sender ! UserConnectAccepted(id, receiverActor, enumerator)
-    }
+
 
 //    case JoinApplication =>
 
@@ -37,11 +37,6 @@ class WebSocketSender extends Actor {
 
 
     case s:actors.messages.Response => channel.foreach( _.push( s.toJson ) )
-
-
-//    case Connected(id) => context.parent ! Broadcast[Payload](id, msgFormatter.connected(id))
-
-//    case Disconnected(id) => context.parent ! Broadcast(id, msgFormatter.disconnected(id))
 
   }
 
@@ -56,6 +51,7 @@ class WebSocketReceiver extends Actor {
 
   def receive = {
     // TODO implement a real response
-    case r: actors.messages.Request => context.parent ! Response( "echo", SingleRecipient(r.sessionId), r.data )
+    case r: actors.messages.Request =>
+      context.parent ! Response( "echo", SingleRecipient(r.sessionId), r.data )
   }
 }
