@@ -2,7 +2,7 @@ package actors.messages
 
 import play.api.libs.json._
 import akka.actor.{ActorRef, Props}
-import play.api.libs.iteratee.Enumerator
+import play.api.libs.iteratee.{Concurrent, Enumerator}
 import actors.messages.UserSession.SessionId
 
 /**
@@ -22,11 +22,9 @@ case class UserConnectFailed(id: SessionId, error: String) extends Message
 // it's sent to gateway and forwarded to the Application and the game
 case class UserDisconnected(id:SessionId) extends Message
 
-// it's sent from the Gateway to the Application
-case class UserLoggedIn( user:UserSession) extends Message
 
 
-case class UserSenderActorInit(id: String, receiverActor: ActorRef)
+case class UserActorInit(id: SessionId)
 
 
 abstract class Recipients {

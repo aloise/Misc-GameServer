@@ -43,9 +43,11 @@ object ApiController extends Controller {
       (supervisor ? UserConnect(sessionId) ).map {
 
         case c: UserConnectAccepted =>
+
           val iteratee = Iteratee.foreach[JsValue] { event =>
 
-//            c.receiver ! parseRequestJson(sessionId, event)
+            // c.receiver ! parseRequestJson(sessionId, event)
+            // pass the message to the superviser
             supervisor ! parseRequestJson(sessionId, event)
 
           }.map { _ =>
