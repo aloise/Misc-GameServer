@@ -8,6 +8,7 @@ import play.api.libs.json.JsValue
 import actors.Application.{GameCreate, UserJoinedSuccessfully, UserJoin}
 import models.Games.format
 import reactivemongo.bson._
+import play.api.libs.concurrent.Execution.Implicits._
 
 
 // Gateway is the parent of the Application
@@ -50,10 +51,15 @@ class Application( application:models.Application) extends Actor {
       import models.Games.format
 
       val newGameData = data.copy( id = None, applicationId = application.id.get )
-      models.Games.insert( newGameData )
+      models.Games.insert( newGameData ).map { lastError =>
+
+      }
 
   }
 
+
+  def getActorProps( gameProfile:models.Game ) =
+    Props(classOf[actors.Game], context.self, gameProfile)
 
 }
 

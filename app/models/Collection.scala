@@ -84,7 +84,7 @@ abstract class Collection[T](collectionName:String) extends JSONGenericHandlers 
   */
 
   def find(q: JsObject)(implicit reader: Reads[T]): Future[List[T]] = {
-    val jsonValuesFuture = collection.find(q).cursor[JsObject].toList()
+    val jsonValuesFuture = collection.find(q).cursor[JsObject].collect[List]()
     // Transform future of JSON values to future of T, but only keep the successfully parsed ones
     jsonValuesFuture map { jsonValues =>
       jsonValues map { json =>
@@ -97,7 +97,7 @@ abstract class Collection[T](collectionName:String) extends JSONGenericHandlers 
    * Find all items for the given JsValue query.
    * Implicit JsValue -> T must be in scope
    */
-  def find[T](q: JsValue)(implicit reader: Reads[T]): Future[List[T]] = find[T](q)
+//  def find(q: JsValue)(implicit reader: Reads[T]): Future[List[T]] = find[T](q)
 
   /**
    * Find one item and maybe return it.
@@ -141,8 +141,7 @@ abstract class Collection[T](collectionName:String) extends JSONGenericHandlers 
   def count(q: Option[BSONDocument] = None): Future[Int] =
     collection.db.command(Count(collectionName = collection.name, query = q))
 
-  def all(implicit reader: Reads[T]): Future[List[T]] =
-    find[T](Json.obj())
+  def all(implicit reader: Reads[T]): Future[List[T]] = find(Json.obj())
 
   // For performance reasons, this is not implemented in terms of findOne, but find().limit()
   /*

@@ -17,7 +17,7 @@ object ApplicationBuild extends Build {
 //     "org.reflections" % "reflections" % "0.9.8",
 //     "se.radley" %% "play-plugins-salat" % "1.2",
 //     "com.novus" %% "salat" % "1.9.2",
-     "org.reactivemongo" %% "play2-reactivemongo" % "0.9" exclude("org.scala-stm", "scala-stm_2.10.0"),
+     "org.reactivemongo" %% "play2-reactivemongo" % "0.10.2" exclude("org.scala-stm", "scala-stm_2.10.0"),
      "io.backchat.inflector" %% "scala-inflector" % "1.3.5" exclude("org.scala-stm", "scala-stm_2.10.0")
 
   )
