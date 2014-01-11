@@ -4,6 +4,8 @@ package models
 import play.api.Play.current
 import org.joda.time.DateTime
 import reactivemongo.bson._
+import play.modules.reactivemongo.json.BSONFormats._
+
 
 case class Profile (
   id: Option[BSONObjectID],

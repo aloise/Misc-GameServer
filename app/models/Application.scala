@@ -26,3 +26,5 @@ object Applications extends Collection[Application]("applications") {
 
 
 }
+
+

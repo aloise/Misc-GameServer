@@ -5,11 +5,16 @@ import messages._
 import actors.messages.UserSession.SessionId
 import play.api.libs.iteratee.Concurrent
 import play.api.libs.json.JsValue
-import actors.Application.{UserJoinedSuccessfully, UserJoin}
+import actors.Application.{GameCreate, UserJoinedSuccessfully, UserJoin}
+import models.Games.format
+import reactivemongo.bson._
 
 
 // Gateway is the parent of the Application
 class Application( application:models.Application) extends Actor {
+
+
+
 
   var games = Map[Int, ActorRef]()
   var users = Map[SessionId, UserSession]()
@@ -41,6 +46,12 @@ class Application( application:models.Application) extends Actor {
         users = users - sessionId
       }
 
+    case GameCreate( data ) =>
+      import models.Games.format
+
+      val newGameData = data.copy( id = None, applicationId = application.id.get )
+      models.Games.insert( newGameData )
+
   }
 
 
@@ -52,8 +63,9 @@ object Application {
 
   case class UserJoinedSuccessfully( userSession:UserSession ) extends InternalMessage
 
-  case class GameCreate( name:String ) extends InternalMessage
+  case class GameCreate( data:models.Game ) extends InternalMessage
   case class GameCreatedSuccessfully( gameId:Int, game:ActorRef ) extends InternalMessage
+  case class GameCreateFailed( reason:String )
 
 
 }

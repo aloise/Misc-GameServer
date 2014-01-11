@@ -66,8 +66,7 @@ class Gateway extends Actor {
       import models.Applications.format
 
       models.Applications.find( Json.obj("gid" -> appId ) ).map { apps =>
-        apps.headOption match {
-          case Some(app) =>
+        apps.headOption.map { app =>
             val applicationActor = context.actorOf( getApplicationActorProps(app) )
             applications = applications + ( app.gid -> ( app, applicationActor ) )
         }
@@ -77,6 +76,8 @@ class Gateway extends Actor {
     case request:actors.messages.Request => request.applicationId.flatMap( applications.get ).foreach{
         _._2 ! request
       }
+
+
     case response:Response =>
       // bypass directly to recipient sender actors, normally a gateway response message is just an error ( see processLoginOrUserCreateRequest )
       response.recipients.foreach { sessionId =>

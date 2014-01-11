@@ -3,10 +3,11 @@ package models
 import play.api.Play.current
 import org.joda.time.DateTime
 import reactivemongo.bson._
+import play.modules.reactivemongo.json.BSONFormats._
+import play.api.libs.json.Json
 
 case class GameProfile (
   id: Option[BSONObjectID],
-  game:Game,
   profile:BSONObjectID,
   status:String,
   rating:Int,
@@ -16,5 +17,7 @@ case class GameProfile (
 )
 
 object GameProfiles extends Collection[GameProfile]("game_profiles"){
+
+  implicit val format = Json.format[GameProfile]
 
 }

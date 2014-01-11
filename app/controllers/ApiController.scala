@@ -25,7 +25,8 @@ object ApiController extends Controller {
 
   type Payload = JsValue
 
-  lazy val supervisor = Akka.system.actorOf(Props[Gateway])
+  //
+  val supervisor = Akka.system.actorOf(Props[Gateway])
 
   def index = {
 
