@@ -76,7 +76,7 @@ object ApiController extends Controller {
       ( req \ "event" ).asOpt[String].getOrElse("_unknown"),
       sessionId,
       ( req \ "applicationId").asOpt[String],
-      ( req \ "gameId").asOpt[Int],
+      ( req \ "gameId").asOpt[String],
       new Date(),
       req \ "data"
     )

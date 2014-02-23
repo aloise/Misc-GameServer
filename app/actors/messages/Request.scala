@@ -24,7 +24,7 @@ abstract class Request{
   def event:String // event name
   def sessionId: SessionId // socket-io provided session id
   def applicationId:Option[String] // target application id
-  def gameId:Option[Int] // target game id
+  def gameId:Option[String] // target game id
   def date:Date
   def data:JsValue // event data
 }
@@ -33,7 +33,7 @@ case class GeneralRequest (
    override val event:String, // event name
    override val sessionId: SessionId,
    override val applicationId:Option[String], // target application id
-   override val gameId:Option[Int], // target game id
+   override val gameId:Option[String], // target game id
    override val date:Date,
    override val data:JsValue // event data
 ) extends Request

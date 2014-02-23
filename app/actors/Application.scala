@@ -20,7 +20,7 @@ class Application( application:models.Application) extends Actor {
   import models.Games.{ format => f0 }
   import models.ApplicationProfiles.{ jsonFormat => f1 }
 
-  var games = Map[Int, ActorRef]()
+  var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
   var users = Map[SessionId, (UserSession, ApplicationProfile)]()
 
   private def userActor(channel:Concurrent.Channel[JsValue]) = Props(classOf[UserActor], channel, self)
@@ -30,14 +30,17 @@ class Application( application:models.Application) extends Actor {
     case Application.UserJoin( sessionId, dbUser, channel ) =>
 
       // construct the User and pass back the user
-      val actor = context.actorOf( userActor(channel) )
-      val userSession = UserSession( sessionId, dbUser, actor, self  )
+      val appActor = self
 
       // get the user's application profile or create one
       val userAppData:Future[ ApplicationProfile ] = getApplicationProfileForUser(dbUser)
 
       // pipe the response back to the sender
       val userJoinedMsg = userAppData.map { case appProfile =>
+
+        val actor = context.actorOf( userActor(channel), "User#" + dbUser.id.get )
+        val userSession = UserSession( sessionId, dbUser, actor, appActor  )
+
         users.synchronized{
           users = users + ( sessionId -> ( userSession, appProfile) )
         }
@@ -53,7 +56,9 @@ class Application( application:models.Application) extends Actor {
       users.get(sessionId).foreach{ user =>
 
         // notify games
-        games.foreach( _._2 ! u )
+        games.foreach{
+          case (_,(_, actor)) => actor ! u
+        }
 
         // kill the user actor
         user._1.userActor ! PoisonPill
@@ -63,11 +68,28 @@ class Application( application:models.Application) extends Actor {
       }
 
     case GameCreate( data ) =>
-      val realSender = sender
+
+      val cntx = context
       val newGameData = data.copy( id = Some(BSONObjectID.generate), applicationId = application.id.get )
-      models.Games.insert( newGameData ).onSuccess { case lastError =>
-        realSender
-      }
+      val responseMsg =
+        models.Games.
+          insert( newGameData ).
+          map { case lastError =>
+            if( lastError.ok ){
+
+              val actor = cntx.actorOf( getGameActorProps(newGameData), "Game#"+newGameData.id.get )
+
+              games.synchronized{
+                games = games + ( newGameData.id.get -> ( newGameData, actor ) )
+              }
+
+              Application.GameCreatedSuccessfully(newGameData, actor)
+            } else {
+              Application.GameCreateFailed( lastError.errMsg.getOrElse("game_create_error") )
+            }
+
+          }
+      responseMsg pipeTo sender
 
     // process an application-wide event - gameId is empty
     case actors.messages.GeneralRequest( event, sessionId, applicationId, None, date, data ) =>
@@ -75,8 +97,9 @@ class Application( application:models.Application) extends Actor {
       // none at the moment
 
     // pass the event to the corresponding game
-    case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ ) if games.contains(gameId) && users.contains(sessionId) =>
-      games(gameId) ! r
+    case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
+      if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>
+        games(BSONObjectID( gameId ))._2 ! r
 
 
 
@@ -116,7 +139,7 @@ object Application {
   case class UserJoinedSuccessfully( userSession:UserSession, applicationProfile: ApplicationProfile ) extends InternalMessage
 
   case class GameCreate( data:models.Game ) extends InternalMessage
-  case class GameCreatedSuccessfully( gameId:Int, game:ActorRef ) extends InternalMessage
+  case class GameCreatedSuccessfully( game:models.Game, gameActor:ActorRef ) extends InternalMessage
   case class GameCreateFailed( reason:String )
 
 
