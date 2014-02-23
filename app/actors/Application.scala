@@ -34,24 +34,7 @@ class Application( application:models.Application) extends Actor {
       val userSession = UserSession( sessionId, dbUser, actor, self  )
 
       // get the user's application profile or create one
-      val userAppData:Future[ ApplicationProfile ] =
-        ApplicationProfiles.
-          collection.
-          find( Json.obj("userId" -> dbUser.id ) ).
-          one[ApplicationProfile].
-          flatMap{
-            case Some(appProfile) =>
-              Future.successful( appProfile )
-            case None =>
-              val newAppProfile = ApplicationProfiles.getForUser(application, dbUser)
-              ApplicationProfiles.
-                collection.
-                insert( newAppProfile ).
-                map{ lastError =>
-                  // TODO add an error check here
-                  newAppProfile
-                }
-          }
+      val userAppData:Future[ ApplicationProfile ] = getApplicationProfileForUser(dbUser)
 
       // pipe the response back to the sender
       val userJoinedMsg = userAppData.map { case appProfile =>
@@ -72,7 +55,9 @@ class Application( application:models.Application) extends Actor {
         // notify games
         games.foreach( _._2 ! u )
 
+        // kill the user actor
         user._1.userActor ! PoisonPill
+
         // remove him from the list
         users = users - sessionId
       }
@@ -98,7 +83,29 @@ class Application( application:models.Application) extends Actor {
   }
 
 
-  def getActorProps( gameProfile:models.Game ) =
+  def getApplicationProfileForUser(dbUser: models.User): Future[ApplicationProfile] = {
+    ApplicationProfiles.
+      collection.
+      find(Json.obj("userId" -> dbUser.id)).
+      one[ApplicationProfile].
+      flatMap {
+      case Some(appProfile) =>
+        Future.successful(appProfile)
+      case None =>
+        val newAppProfile = ApplicationProfiles.getForUser(application, dbUser)
+        ApplicationProfiles.
+          collection.
+          insert(newAppProfile).
+          map {
+          lastError =>
+          // TODO add an error check here
+            newAppProfile
+        }
+    }
+  }
+
+  // TODO override this method for specific games
+  def getGameActorProps( gameProfile:models.Game ) =
     Props(classOf[actors.Game], context.self, gameProfile)
 
 }
