@@ -12,6 +12,7 @@ import play.api.libs.concurrent.Execution.Implicits._
 import models.{ApplicationProfiles, ApplicationProfile}
 import scala.concurrent.Future
 import akka.pattern._
+import play.api.libs.concurrent.Execution.Implicits._
 
 
 // Gateway is the parent of the Application
@@ -20,8 +21,8 @@ class Application( application:models.Application) extends Actor {
   import models.Games.{ format => f0 }
   import models.ApplicationProfiles.{ jsonFormat => f1 }
 
-  var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
-  var users = Map[SessionId, (UserSession, ApplicationProfile)]()
+  protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
+  protected var users = Map[SessionId, (UserSession, ApplicationProfile)]()
 
   private def userActor(channel:Concurrent.Channel[JsValue]) = Props(classOf[UserActor], channel, self)
 
@@ -44,6 +45,9 @@ class Application( application:models.Application) extends Actor {
         users.synchronized{
           users = users + ( sessionId -> ( userSession, appProfile) )
         }
+
+        userSession.userActor ! Application.UserJoinedSuccessfullyResponse( userSession.sessionId, application, appProfile )
+
         UserJoinedSuccessfully( userSession, appProfile )
       }
 
@@ -147,8 +151,10 @@ class Application( application:models.Application) extends Actor {
           insert(newAppProfile).
           map {
           lastError =>
-            // TODO add an error check here
-            newAppProfile
+            if( lastError.ok )
+              newAppProfile
+            else
+              throw new Application.ApplicationProfileCreateFailed(lastError.errMsg.getOrElse("application_profile_create_failed"))
         }
     }
   }
@@ -160,6 +166,10 @@ class Application( application:models.Application) extends Actor {
 }
 
 object Application {
+
+  import models.ApplicationProfiles.{ jsonFormat => f0 }
+  import models.Applications.{ format => f1 }
+
   // it's sent from the Gateway to the Application
   case class UserJoin( id:SessionId, dbUser:models.User, channel: Concurrent.Channel[JsValue]) extends InternalMessage
   case class UserJoinedSuccessfully( userSession:UserSession, applicationProfile: ApplicationProfile ) extends InternalMessage
@@ -169,5 +179,11 @@ object Application {
   case class GameCreateFailed( reason:String ) extends InternalMessage
 
   case class GameFinished( gameId: BSONObjectID ) extends InternalMessage
+
+  class ApplicationProfileCreateFailed(msg:String) extends Throwable
+
+  case class UserJoinedSuccessfullyResponse(sessionId:SessionId, application: models.Application, applicationProfile: models.ApplicationProfile) extends
+    actors.messages.Response("application.user_joined_successfully", SingleRecipient(sessionId), Json.toJson( Json.obj( "application" -> application, "applicationProfile" -> applicationProfile ) ) )
+
 
 }

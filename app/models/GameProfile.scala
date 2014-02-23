@@ -8,16 +8,24 @@ import play.api.libs.json.Json
 
 case class GameProfile (
   id: Option[BSONObjectID],
-  profileId:BSONObjectID,
-  status:String,
-  rating:Int,
-  karma:Int,
+  applicationProfileId:BSONObjectID,
+  status:String = GameProfiles.Status.pending,
+  rating:Int = 0,
+  karma:Int = 0,
   created:DateTime = new DateTime,
   completed:Option[DateTime] = None
 )
 
 object GameProfiles extends Collection[GameProfile]("game_profiles"){
 
+  object Status {
+    val pending = "pending"
+    val inProgress = "in_progress"
+    val completed = "completed"
+  }
+
   implicit val format = Json.format[GameProfile]
+
+
 
 }

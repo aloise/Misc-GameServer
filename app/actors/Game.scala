@@ -3,8 +3,13 @@ package actors
 import akka.actor._
 import scala.collection.mutable
 import actors.messages.UserSession._
-import actors.messages.UserSession
+import actors.messages.{SingleRecipient, UserSession}
 import models.ApplicationProfile
+import play.api.libs.json.Json
+import scala.concurrent.Future
+import reactivemongo.bson.BSONObjectID
+import play.api.libs.concurrent.Execution.Implicits._
+import play.modules.reactivemongo.json.BSONFormats._
 
 /**
  * User: aloise
@@ -13,21 +18,68 @@ import models.ApplicationProfile
  */
 class Game(application:ActorRef, game:models.Game) extends Actor {
 
-  var users = mutable.Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
+  import models.GameProfiles.{format => f0}
+
+  protected var users = mutable.Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
   def receive = {
 
     case Game.UserJoin( userSession, appProfile ) =>
-//        users = users + ( userSession.sessionId -> userSession )
+      val profile = getGameProfileForUser(appProfile)
+
+      profile.foreach{ gameProfile =>
+        users.synchronized{
+          users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
+        }
+
+        userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
+      }
+
+//      users = users + ( userSession.sessionId -> userSession )
 
     case r:messages.Response =>
 //      application ! r
   }
 
+
+  def getGameProfileForUser(appProfile: ApplicationProfile): Future[models.GameProfile] = {
+    models.GameProfiles.
+      collection.
+      find(Json.obj("applicationProfileId" -> appProfile.id)).
+      one[models.GameProfile].
+      flatMap {
+      case Some(gameProfile) =>
+        Future.successful(gameProfile)
+      case None =>
+
+        val newGameProfile = models.GameProfile(Some(BSONObjectID.generate), appProfile.id.get)
+
+        models.GameProfiles.
+          insert(newGameProfile).
+          map {
+          lastError =>
+            if (lastError.ok) {
+              newGameProfile
+            } else {
+              throw new Game.GameProfileCreateFailed(lastError.errMsg.getOrElse("game_profile_create_failed"))
+            }
+
+        }
+    }
+  }
 }
 
 
 object Game {
 
+  import models.Games.{ format => f0 }
+  import models.GameProfiles.{ format => f1 }
+
   case class UserJoin( userSession:UserSession, applicationProfile: models.ApplicationProfile )
+
+  // it's sent to user
+  case class UserJoinedSuccessfully(sessionId:SessionId, game:models.Game, gameProfile:models.GameProfile) extends
+    actors.messages.Response("game.user_joined_successfully", SingleRecipient(sessionId), Json.toJson( Json.obj( "game" -> game, "gameProfile" -> gameProfile ) ) )
+
+  class GameProfileCreateFailed(msg:String) extends Throwable
 }
