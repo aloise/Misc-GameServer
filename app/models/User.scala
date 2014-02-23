@@ -42,7 +42,7 @@ object Users extends Collection[User]("users"){
         case None =>
 
           // create a user
-          val newUser = User( None, uid, username.getOrElse("user_"+uid) )
+          val newUser = User( Some(BSONObjectID.generate), uid, username.getOrElse("user_"+uid) )
           collection.
             insert(  jsonFormat.writes( newUser ).as[JsObject] ).
             map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError }

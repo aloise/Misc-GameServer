@@ -8,12 +8,12 @@ import play.api.libs.json.Json
 
 case class GameProfile (
   id: Option[BSONObjectID],
-  profile:BSONObjectID,
+  profileId:BSONObjectID,
   status:String,
   rating:Int,
   karma:Int,
   created:DateTime = new DateTime,
-  completed:DateTime
+  completed:Option[DateTime] = None
 )
 
 object GameProfiles extends Collection[GameProfile]("game_profiles"){

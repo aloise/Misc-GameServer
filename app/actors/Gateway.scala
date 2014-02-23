@@ -24,6 +24,8 @@ import actors.messages.GeneralRequest
 
 class Gateway extends Actor {
 
+  import models.Applications.format
+
 //  private val receiverProps = Props[WebSocketReceiver]
 //  private val senderProps = Props[WebSocketSender]
 
@@ -62,8 +64,6 @@ class Gateway extends Actor {
     case request@GeneralRequest("login",_,_,_,_,_) => processLoginOrUserCreateRequest(request)
 
     case Gateway.ApplicationCreate(appId) =>
-
-      import models.Applications.format
 
       models.Applications.find( Json.obj("gid" -> appId ) ).map { apps =>
         apps.headOption.map { app =>
@@ -105,12 +105,10 @@ class Gateway extends Actor {
         case Some( channel ) =>
           ( applicationActor ? Application.UserJoin( sessionId, dbUser, channel ) ).map{
 
-            case Application.UserJoinedSuccessfully(userSession) =>
+            case Application.UserJoinedSuccessfully(userSession, appProfile) =>
               // update the user session
-              // TODO - possibly a race condition in future ... synchronized might not be required
-              users.synchronized{
-                users = users + ( userSession.sessionId -> userSession )
-              }
+
+              users = users + ( userSession.sessionId -> userSession )
 
             case _ => disconnectUser( sessionId )
           }.onFailure{
@@ -139,7 +137,7 @@ class Gateway extends Actor {
     }
 
 
-    val msg = "login"
+//    val msg = "login"
     val reader = (
       ( __ \ "id").read[Int] and
       ( __ \ "signature").read[String] and
