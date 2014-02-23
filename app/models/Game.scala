@@ -16,6 +16,7 @@ case class Game (
   created:DateTime,
   started:Option[DateTime],
   finished:Option[DateTime],
+  creatorGameProfileId: Option[BSONObjectID],
   gameProfiles:List[GameProfile] = Nil
 )
 

@@ -67,29 +67,55 @@ class Application( application:models.Application) extends Actor {
         users = users - sessionId
       }
 
-    case GameCreate( data ) =>
+    case GameCreate( data, creatorSessionId ) =>
 
       val cntx = context
-      val newGameData = data.copy( id = Some(BSONObjectID.generate), applicationId = application.id.get )
+      val appActor = context.self
+      val creatorUserSession = creatorSessionId.flatMap( users.get )
+      val newGameData = data.copy(
+        id = Some(BSONObjectID.generate),
+        applicationId = application.id.get,
+        creatorGameProfileId = creatorUserSession.flatMap( _._1.user.id )
+      )
+
       val responseMsg =
         models.Games.
           insert( newGameData ).
           map { case lastError =>
             if( lastError.ok ){
 
-              val actor = cntx.actorOf( getGameActorProps(newGameData), "Game#"+newGameData.id.get )
+              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game#"+newGameData.id.get )
 
-              games.synchronized{
-                games = games + ( newGameData.id.get -> ( newGameData, actor ) )
+              // auto-join the game creator
+              creatorUserSession.foreach{ case( userSess, userAppProfile) =>
+                gameActor ! Game.UserJoin( userSess, userAppProfile )
               }
 
-              Application.GameCreatedSuccessfully(newGameData, actor)
+              games.synchronized{
+                games = games + ( newGameData.id.get -> ( newGameData, gameActor ) )
+              }
+
+              Application.GameCreatedSuccessfully(newGameData, gameActor)
+
             } else {
               Application.GameCreateFailed( lastError.errMsg.getOrElse("game_create_error") )
             }
 
           }
+
       responseMsg pipeTo sender
+
+    case Application.GameFinished( gameId ) =>
+
+      games.get(gameId).foreach{ case (game, gameActor) =>
+
+
+
+        gameActor ! PoisonPill
+
+        games = games - gameId
+      }
+
 
     // process an application-wide event - gameId is empty
     case actors.messages.GeneralRequest( event, sessionId, applicationId, None, date, data ) =>
@@ -121,15 +147,15 @@ class Application( application:models.Application) extends Actor {
           insert(newAppProfile).
           map {
           lastError =>
-          // TODO add an error check here
+            // TODO add an error check here
             newAppProfile
         }
     }
   }
 
   // TODO override this method for specific games
-  def getGameActorProps( gameProfile:models.Game ) =
-    Props(classOf[actors.Game], context.self, gameProfile)
+  def getGameActorProps( gameProfile:models.Game, app:ActorRef = context.self ) =
+    Props(classOf[actors.Game], app, gameProfile)
 
 }
 
@@ -138,9 +164,10 @@ object Application {
   case class UserJoin( id:SessionId, dbUser:models.User, channel: Concurrent.Channel[JsValue]) extends InternalMessage
   case class UserJoinedSuccessfully( userSession:UserSession, applicationProfile: ApplicationProfile ) extends InternalMessage
 
-  case class GameCreate( data:models.Game ) extends InternalMessage
+  case class GameCreate( data:models.Game, creator:Option[SessionId] = None ) extends InternalMessage
   case class GameCreatedSuccessfully( game:models.Game, gameActor:ActorRef ) extends InternalMessage
-  case class GameCreateFailed( reason:String )
+  case class GameCreateFailed( reason:String ) extends InternalMessage
 
+  case class GameFinished( gameId: BSONObjectID ) extends InternalMessage
 
 }
