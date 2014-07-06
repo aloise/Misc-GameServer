@@ -1,6 +1,7 @@
 package actors
 
 
+import play.api.Logger
 import play.api.libs.json._
 import actors.messages._
 import java.util.Date
@@ -29,16 +30,15 @@ class Gateway extends Actor {
 //  private val receiverProps = Props[WebSocketReceiver]
 //  private val senderProps = Props[WebSocketSender]
 
-  // map all users to sessionIds
+  // map all users to sessionIds  - authorized by application users
   var users = Map[SessionId, UserSession]()
 
   var applications = Map[String, ( models.Application, ActorRef ) ]()
 
+  // TODO - move it inside the "users" var. Those are unathorized users both with authorized
   var userSockets = Map[SessionId, Concurrent.Channel[JsValue] ]()
 
-
-
-  override def receive = {
+  override def receive:Receive = {
 
     // Socket Events
     // process a user connection, create actors and writes the session.. user db info will be empty till the login
@@ -59,9 +59,11 @@ class Gateway extends Actor {
       disconnectUser(sessionId)
 
     // User request
-    case request@GeneralRequest("logout",_,_, _, _, _) => processLogoutRequest(request)
+    case request@GeneralRequest("logout",_,_, _, _, _) =>
+      processLogoutRequest(request)
 
-    case request@GeneralRequest("login",_,_,_,_,_) => processLoginOrUserCreateRequest(request)
+    case request@GeneralRequest("login",_,_,_,_,_) =>
+      processLoginOrUserCreateRequest(request)
 
     case Gateway.ApplicationCreate(appId) =>
 
@@ -79,21 +81,34 @@ class Gateway extends Actor {
 
 
     case response:Response =>
-      // bypass directly to recipient sender actors, normally a gateway response message is just an error ( see processLoginOrUserCreateRequest )
+      // bypass directly to recipient sender actors, usually a gateway response message is just an error ( see processLoginOrUserCreateRequest )
       response.recipients.foreach { sessionId =>
-        users.get(sessionId).foreach{ _.userActor ! response }
+
+        if( users.contains(sessionId) ){
+          users.get(sessionId).foreach{
+            _.userActor ! response
+          }
+        } else {
+          userSockets.get( sessionId ).foreach {
+            _.push( response.toJson )
+          }
+        }
+
+
       }
 
   }
 
-  def getApplicationActorProps(dbApplication:models.Application) = Props(classOf[actors.Application], dbApplication)
+  def getApplicationActorProps(dbApplication:models.Application) =
+    Props(classOf[actors.Application], dbApplication)
 
   def processLoginOrUserCreateRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
 
     val me = self
 
-    def error( msg:String ) = me ! ErrorResponse( msg, SingleRecipient(request.sessionId), msg )
+    def sendError( msg:String ) =
+      me ! ErrorResponse( "login", SingleRecipient(request.sessionId), msg )
 
     def processUserCreationByApplication( applicationActor:ActorRef, sessionId:SessionId, dbUser:models.User ) = {
 
@@ -115,7 +130,8 @@ class Gateway extends Actor {
             // timeout or whatever
             case _ => disconnectUser( sessionId )
           }
-        case None => error("user_socket_session_was_not_found")
+        case None =>
+          sendError("user_socket_session_was_not_found")
       }
 
 
@@ -144,20 +160,26 @@ class Gateway extends Actor {
       ( __ \ "username").readNullable[String]
     ).tupled
 
-    request.data.validate[(Int,String,Option[String] )](reader).map{
+    request.data.validate(reader).map{
 
       case (id, signature, maybeUsername ) =>
 
         request.applicationId.flatMap{ applications.get } match {
           case Some( (_, applicationActor )) =>
              Users.authenticateOrCreate( id, signature, maybeUsername).foreach {
-                case Some(dbUser) => processUserCreationByApplication(applicationActor, request.sessionId, dbUser)
-                case None => error( "user_not_found" )
+                case Some(dbUser) =>
+                  processUserCreationByApplication(applicationActor, request.sessionId, dbUser)
+                case None =>
+                  sendError( "user_not_found" )
               }
-          case None => error( "application_not_found" )
+          case None =>
+            sendError( "application_not_found" )
         }
 
-    }.recoverTotal( _ => error( "invalid_format" ) )
+    }.recoverTotal{ e =>
+      println(e)
+      sendError( "invalid_format" )
+    }
 
   }
 

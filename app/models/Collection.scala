@@ -44,9 +44,9 @@ abstract class Collection[T](collectionName:String) extends JSONGenericHandlers 
 
   def name = collectionName
 
-  val ID = "_id"
+  // val ID = "_id"
 
-  implicit def ec: ExecutionContext = ExecutionContext.Implicits.global
+  import play.api.libs.concurrent.Execution.Implicits._
 
 //  implicit val format: json.Format[T]
 

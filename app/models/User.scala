@@ -10,10 +10,11 @@ import reactivemongo.api.Cursor
 import play.api.libs.iteratee.Iteratee
 import scala.concurrent.Future
 import play.modules.reactivemongo.json.BSONFormats._
+import play.api.libs.concurrent.Execution.Implicits._
 
 
 case class User(
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   uid:Int, // external user id
   username: String,
   created: DateTime = new DateTime()
@@ -42,7 +43,7 @@ object Users extends Collection[User]("users"){
         case None =>
 
           // create a user
-          val newUser = User( Some(BSONObjectID.generate), uid, username.getOrElse("user_"+uid) )
+          val newUser = User( BSONObjectID.generate, uid, username.getOrElse("user_"+uid) )
           collection.
             insert(  jsonFormat.writes( newUser ).as[JsObject] ).
             map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError }

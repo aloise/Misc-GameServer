@@ -1,6 +1,7 @@
 package controllers
 
 import play.api._
+import play.api.libs.json._
 import play.api.mvc.{Controller, WebSocket}
 import play.api.libs.iteratee.{Concurrent, Enumerator, Iteratee}
 import akka.actor.{Props, ActorRef}
@@ -19,6 +20,8 @@ import akka.pattern._
 import actors.messages.UserSession._
 import play.api.libs.concurrent.Execution.Implicits._
 import scala.concurrent.duration._
+import play.api.libs.functional.syntax._
+
 
 
 object ApiController extends Controller {
@@ -26,7 +29,7 @@ object ApiController extends Controller {
   type Payload = JsValue
 
   //
-  val supervisor = Akka.system.actorOf(Props[Gateway])
+  val supervisor = common.Global.gateway
 
   def index = {
 
@@ -37,6 +40,8 @@ object ApiController extends Controller {
 
       val sessionId = UserSession.random
 
+//      Logger.trace( s"Api WS Request sessionId : $sessionId : $request" )
+
       (supervisor ? Gateway.UserConnect(sessionId) ).map {
 
         case c: Gateway.UserConnectAccepted =>
@@ -44,8 +49,17 @@ object ApiController extends Controller {
           val iteratee = Iteratee.foreach[JsValue] { event =>
 
             // c.receiver ! parseRequestJson(sessionId, event)
-            // pass the message to the superviser
-            supervisor ! parseRequestJson(sessionId, event)
+            // pass the message to the supervisor
+
+            val parsedRequestOpt = parseRequestJson(sessionId, event)
+
+            Logger.trace( s"Api WS Parsed Request sessionId : $sessionId : $parsedRequestOpt" )
+
+
+            parsedRequestOpt.foreach {
+              supervisor ! _
+            }
+
 
           }.map { _ =>
             supervisor ! Gateway.UserDisconnected(sessionId)
@@ -72,14 +86,16 @@ object ApiController extends Controller {
 
     // Handle event
 
-    GeneralRequest(
-      ( req \ "event" ).asOpt[String].getOrElse("_unknown"),
-      sessionId,
-      ( req \ "applicationId").asOpt[String],
-      ( req \ "gameId").asOpt[String],
-      new Date(),
-      req \ "data"
-    )
+    val validator = (
+      ( __ \ "event" ).read[String] and
+      ( __ \ "applicationId" ).readNullable[String] and
+      ( __ \ "gameId" ).readNullable[String] and
+      ( __ \ "data" ).readNullable[JsValue]
+    ).tupled
+
+    req.validate( validator ).map { case ( event, applicationId, gameIdOpt, data) =>
+      GeneralRequest( event, sessionId, applicationId, gameIdOpt, new Date(), data.getOrElse( Json.obj() ) )
+    }.asOpt
 
 
   }

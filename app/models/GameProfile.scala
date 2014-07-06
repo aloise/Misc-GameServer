@@ -7,7 +7,7 @@ import play.modules.reactivemongo.json.BSONFormats._
 import play.api.libs.json.Json
 
 case class GameProfile (
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   applicationProfileId:BSONObjectID,
   status:String = GameProfiles.Status.pending,
   rating:Int = 0,

@@ -39,7 +39,7 @@ class Application( application:models.Application) extends Actor {
       // pipe the response back to the sender
       val userJoinedMsg = userAppData.map { case appProfile =>
 
-        val actor = context.actorOf( userActor(channel), "User#" + dbUser.id.get )
+        val actor = context.actorOf( userActor(channel), "User#" + dbUser._id )
         val userSession = UserSession( sessionId, dbUser, actor, appActor  )
 
         users.synchronized{
@@ -76,10 +76,11 @@ class Application( application:models.Application) extends Actor {
       val cntx = context
       val appActor = context.self
       val creatorUserSession = creatorSessionId.flatMap( users.get )
+
       val newGameData = data.copy(
-        id = Some(BSONObjectID.generate),
-        applicationId = application.id.get,
-        creatorGameProfileId = creatorUserSession.flatMap( _._1.user.id )
+        _id = BSONObjectID.generate,
+        applicationId = application._id,
+        creatorGameProfileId = creatorUserSession.map( _._1.user._id )
       )
 
       val responseMsg =
@@ -88,7 +89,7 @@ class Application( application:models.Application) extends Actor {
           map { case lastError =>
             if( lastError.ok ){
 
-              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game#"+newGameData.id.get )
+              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game#"+newGameData._id )
 
               // auto-join the game creator
               creatorUserSession.foreach{ case( userSess, userAppProfile) =>
@@ -96,7 +97,7 @@ class Application( application:models.Application) extends Actor {
               }
 
               games.synchronized{
-                games = games + ( newGameData.id.get -> ( newGameData, gameActor ) )
+                games = games + ( newGameData._id -> ( newGameData, gameActor ) )
               }
 
               Application.GameCreatedSuccessfully(newGameData, gameActor)
@@ -139,22 +140,23 @@ class Application( application:models.Application) extends Actor {
   def getApplicationProfileForUser(dbUser: models.User): Future[ApplicationProfile] = {
     ApplicationProfiles.
       collection.
-      find(Json.obj("userId" -> dbUser.id)).
+      find(Json.obj("userId" -> dbUser._id)).
       one[ApplicationProfile].
       flatMap {
-      case Some(appProfile) =>
-        Future.successful(appProfile)
-      case None =>
-        val newAppProfile = ApplicationProfiles.getForUser(application, dbUser)
-        ApplicationProfiles.
-          collection.
-          insert(newAppProfile).
-          map {
-          lastError =>
-            if( lastError.ok )
-              newAppProfile
-            else
-              throw new Application.ApplicationProfileCreateFailed(lastError.errMsg.getOrElse("application_profile_create_failed"))
+        case Some(appProfile) =>
+          Future.successful(appProfile)
+
+        case None =>
+          val newAppProfile = ApplicationProfiles.getForUser(application, dbUser)
+          ApplicationProfiles.
+            collection.
+            insert(newAppProfile).
+            map {
+            lastError =>
+              if( lastError.ok )
+                newAppProfile
+              else
+                throw new Application.ApplicationProfileCreateFailed(lastError.errMsg.getOrElse("application_profile_create_failed"))
         }
     }
   }

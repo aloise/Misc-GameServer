@@ -45,14 +45,14 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
   def getGameProfileForUser(appProfile: ApplicationProfile): Future[models.GameProfile] = {
     models.GameProfiles.
       collection.
-      find(Json.obj("applicationProfileId" -> appProfile.id)).
+      find(Json.obj("applicationProfileId" -> appProfile._id)).
       one[models.GameProfile].
       flatMap {
       case Some(gameProfile) =>
         Future.successful(gameProfile)
       case None =>
 
-        val newGameProfile = models.GameProfile(Some(BSONObjectID.generate), appProfile.id.get)
+        val newGameProfile = models.GameProfile( BSONObjectID.generate, appProfile._id )
 
         models.GameProfiles.
           insert(newGameProfile).

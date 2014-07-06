@@ -9,7 +9,7 @@ import play.api.libs.json.Json
 
 
 case class ApplicationProfile (
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   userId:BSONObjectID, // User
   applicationId: BSONObjectID, // application
   created:DateTime,
@@ -23,6 +23,6 @@ object ApplicationProfiles extends Collection[ApplicationProfile]("application_p
   implicit val jsonFormat = Json.format[ApplicationProfile]
 
   def getForUser( app:Application, user:User ) =
-    ApplicationProfile( Some(BSONObjectID.generate), user.id.get, app.id.get, new DateTime(), new DateTime, 0, 0, 0 )
+    ApplicationProfile( BSONObjectID.generate, user._id, app._id, new DateTime(), new DateTime, 0, 0, 0 )
 
 }

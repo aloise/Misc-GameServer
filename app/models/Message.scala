@@ -5,7 +5,7 @@ import org.joda.time.DateTime
 import reactivemongo.bson._
 
 case class Message (
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   sender:BSONObjectID, // GameProfile
   recipient:List[BSONObjectID], // GameProfile
   game: BSONObjectID, // Game

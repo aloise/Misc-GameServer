@@ -17,7 +17,8 @@ class UserActor(channel:Concurrent.Channel[JsValue], application:ActorRef ) exte
 
   def receive  = {
 
-    case s:actors.messages.Response => channel.push( s.toJson )
+    case s:actors.messages.Response =>
+      channel.push( s.toJson )
 
   }
 

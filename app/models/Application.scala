@@ -9,7 +9,7 @@ import play.modules.reactivemongo.json.BSONFormats._
 import akka.actor.Props
 
 case class Application(
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   name:String,
   gid:String
 ) {
@@ -19,8 +19,6 @@ case class Application(
 }
 
 object Applications extends Collection[Application]("applications") {
-
-
 
   implicit val format = Json.format[Application]
 

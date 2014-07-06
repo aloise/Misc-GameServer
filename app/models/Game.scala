@@ -9,7 +9,7 @@ import play.modules.reactivemongo.json.BSONFormats._
 
 
 case class Game (
-  id: Option[BSONObjectID],
+  _id: BSONObjectID = BSONObjectID.generate,
   applicationId:BSONObjectID,
   subtypeId:Int,
   status:String,
