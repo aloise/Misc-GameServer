@@ -96,11 +96,11 @@ class Application( application:models.Application) extends Actor {
           map { case lastError =>
             if( lastError.ok ){
 
-              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game#"+newGameData._id )
+              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game_"+newGameData._id.stringify )
 
               // auto-join the game creator
-              creatorUserSession.foreach{ case( userSess, userAppProfile) =>
-                gameActor ! Game.UserJoin( userSess, userAppProfile )
+              creatorUserSession.foreach{ case( userSession, userAppProfile) =>
+                gameActor ! Game.UserJoin( userSession, userAppProfile )
               }
 
               games.synchronized{
@@ -121,8 +121,6 @@ class Application( application:models.Application) extends Actor {
 
       games.get(gameId).foreach{ case (game, gameActor) =>
 
-
-
         gameActor ! PoisonPill
 
         games = games - gameId
@@ -131,15 +129,13 @@ class Application( application:models.Application) extends Actor {
 
     // process an application-wide event - gameId is empty
     case actors.messages.GeneralRequest( event, sessionId, applicationId, None, date, data ) =>
-      // process the request or send to the correponding game
-      // none at the moment
+      // process the request or send to the corresponding game
+      // TODO - implement - none at the moment
 
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
       if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>
-        games(BSONObjectID( gameId ))._2 ! r
-
-
+        games( BSONObjectID( gameId ))._2 ! r
 
   }
 
