@@ -33,6 +33,7 @@ class Gateway extends Actor {
   // map all users to sessionIds  - authorized by application users
   var users = Map[SessionId, UserSession]()
 
+  // A mapping from Application.gid ->
   var applications = Map[String, ( models.Application, ActorRef ) ]()
 
   // TODO - move it inside the "users" var. Those are unathorized users both with authorized
@@ -242,6 +243,6 @@ object Gateway {
   // it's sent to gateway and forwarded to the Application and the game
   case class UserDisconnected(id:SessionId) extends InternalMessage
 
-  case class ApplicationCreate( id:String )
+  case class ApplicationCreate( applicationGid:String )
 
 }

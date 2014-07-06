@@ -24,13 +24,13 @@ case class User(
 
 object Users extends Collection[User]("users"){
 
-  private val secret = Play.configuration.getString("users.secret")
+  private val secret = Play.configuration.getString("users.secret").getOrElse("aloise")
 
   val jsonFormat = Json.format[User]
 
   def authenticateOrCreate(uid:Int, signature:String, username:Option[String] = None):Future[Option[User]] = {
 
-    if( Crypt.sha1( uid.toString + secret ) == signature ){
+    if( Crypt.sha1( uid.toString + secret ).toLowerCase == signature.trim.toLowerCase ){
 
       val found = collection.find(Json.obj( "uid" -> uid )).one[JsValue]
 

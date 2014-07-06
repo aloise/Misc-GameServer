@@ -24,23 +24,30 @@ class Application( application:models.Application) extends Actor {
   protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
   protected var users = Map[SessionId, (UserSession, ApplicationProfile)]()
 
-  private def userActor(channel:Concurrent.Channel[JsValue]) = Props(classOf[UserActor], channel, self)
+  private def getUserActorProps(channel:Concurrent.Channel[JsValue], applicationActor:ActorRef ) =
+    Props(classOf[UserActor], channel, applicationActor)
 
   def receive = {
 
     case Application.UserJoin( sessionId, dbUser, channel ) =>
 
+      val cntx = context
+
       // construct the User and pass back the user
-      val appActor = self
+      val applicationActor = self
 
       // get the user's application profile or create one
       val userAppData:Future[ ApplicationProfile ] = getApplicationProfileForUser(dbUser)
 
       // pipe the response back to the sender
-      val userJoinedMsg = userAppData.map { case appProfile =>
+      val userJoinedMsg = userAppData.map { appProfile =>
 
-        val actor = context.actorOf( userActor(channel), "User#" + dbUser._id )
-        val userSession = UserSession( sessionId, dbUser, actor, appActor  )
+//        println(appProfile)
+        val actorName = "User_" + dbUser._id.stringify + "_" + sessionId
+
+        val actor = cntx.actorOf( getUserActorProps(channel, applicationActor), actorName )
+
+        val userSession = UserSession( sessionId, dbUser, actor, applicationActor )
 
         users.synchronized{
           users = users + ( sessionId -> ( userSession, appProfile) )

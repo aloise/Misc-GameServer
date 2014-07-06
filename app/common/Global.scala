@@ -18,11 +18,11 @@ object Global extends GlobalSettings {
 //    Logger.info("Application has started")
 
     // load all application in the gateway
+    models.Applications.find(Json.obj()).map{ apps =>
+      apps.foreach{ app =>
+        gateway ! Gateway.ApplicationCreate( app.gid )
+      }
 
-    val apps = models.Applications.find(Json.obj())
-
-    apps.foreach{ app =>
-      println( app )
     }
 
 
