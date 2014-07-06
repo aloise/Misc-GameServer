@@ -75,6 +75,11 @@ class Gateway extends Actor {
         }
       }
 
+
+    case request@GeneralRequest( "chat",_,_, _, _, _) =>
+      // let convert it from the general request
+
+
     // route all other requests to the app by the applicationId in the request
     case request:actors.messages.Request => request.applicationId.flatMap( applications.get ).foreach{
         _._2 ! request
@@ -97,6 +102,8 @@ class Gateway extends Actor {
 
 
       }
+
+
 
   }
 
