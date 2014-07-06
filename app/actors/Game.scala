@@ -48,23 +48,23 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
       find(Json.obj("applicationProfileId" -> appProfile._id)).
       one[models.GameProfile].
       flatMap {
-      case Some(gameProfile) =>
-        Future.successful(gameProfile)
-      case None =>
+        case Some(gameProfile) =>
+          Future.successful(gameProfile)
+        case None =>
 
-        val newGameProfile = models.GameProfile( BSONObjectID.generate, appProfile._id )
+          val newGameProfile = models.GameProfile( BSONObjectID.generate, appProfile._id )
 
-        models.GameProfiles.
-          insert(newGameProfile).
-          map {
-          lastError =>
-            if (lastError.ok) {
-              newGameProfile
-            } else {
-              throw new Game.GameProfileCreateFailed(lastError.errMsg.getOrElse("game_profile_create_failed"))
-            }
+          models.GameProfiles.
+            insert(newGameProfile).
+            map {
+            lastError =>
+              if (lastError.ok) {
+                newGameProfile
+              } else {
+                throw new Game.GameProfileCreateFailed(lastError.errMsg.getOrElse("game_profile_create_failed"))
+              }
 
-        }
+          }
     }
   }
 }
