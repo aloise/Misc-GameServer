@@ -36,7 +36,7 @@ object ApiController extends Controller {
     implicit val timeout = Timeout( 60 seconds )
 
 
-    WebSocket.async[JsValue]{ request =>
+    WebSocket.tryAccept[JsValue]{ request =>
 
       val sessionId = UserSession.random
 
@@ -65,19 +65,19 @@ object ApiController extends Controller {
             supervisor ! Gateway.UserDisconnected(sessionId)
           }
 
-          (iteratee, c.enumerator)
+          Right( (iteratee, c.enumerator) )
 
         case Gateway.UserConnectFailed(id, error) =>
           // Connection error
 
           // A finished Iteratee sending EOF
 //        val iteratee = Done[JsValue, Unit]( Json.obj(), Input.EOF)
-          val iteratee = Iteratee.skipToEof[JsValue]
+//          val iteratee = Iteratee.skipToEof[JsValue]
 
           // Send an error and close the socket
-          val enumerator = Enumerator[JsValue]( Json.obj("error" -> error) ).andThen(Enumerator.enumInput(Input.EOF))
+//          val enumerator = Enumerator[JsValue]( Json.obj("error" -> error) ).andThen(Enumerator.enumInput(Input.EOF))
 
-          (iteratee, enumerator)
+          Left( BadRequest( Json.obj("error" -> error) ) )
       }
     }
   }
