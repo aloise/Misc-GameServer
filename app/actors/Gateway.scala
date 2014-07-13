@@ -8,6 +8,7 @@ import java.util.Date
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import models.{Users, User}
 import play.api.libs.functional.syntax._
+import sun.io.Converters
 import scala.concurrent.duration._
 import actors.messages.UserSession.SessionId
 import akka.util.Timeout
@@ -76,8 +77,9 @@ class Gateway extends Actor {
       }
 
 
-    case request@GeneralRequest( "chat",_,_, _, _, _) =>
-      // let convert it from the general request
+    case request:GeneralRequest =>
+
+
 
 
     // route all other requests to the app by the applicationId in the request
@@ -104,6 +106,57 @@ class Gateway extends Actor {
       }
 
 
+
+  }
+
+  def processChatMessage( request:GeneralRequest ) = {
+
+    request match {
+      case GeneralRequest( ChatMessages.eventName , sessionId,_, _, _, _) =>
+          val user = users.get( sessionId )
+
+          // let convert it from the general request
+          val chatMessage = ChatMessages.fromGeneralRequest( request, user.map( _.user.username ).getOrElse("_unknown") )
+
+          chatMessage match {
+            case Some( c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) ) =>
+
+              Logger.debug( "I've got a chat message - " + chatMessage )
+
+              recipient match {
+                case UserListChatMessageRecipient( usernames ) =>
+                  // TODO optimize this call for a large number of users
+                  usernames flatMap { username =>
+                    users.find{ case ( _, session ) => session.user.username == username }
+                  } foreach { case ( _, session ) =>
+                    session.userActor ! chatMessage
+                  }
+
+                case ApplicationChatMessageRecipient( appGid ) =>
+                  // delegate it to app actor
+                  val application = applications.get( appGid ) orElse request.applicationId.flatMap( applications.get )
+
+                  application.foreach{ case ( _, appActor ) =>
+                    appActor ! chatMessage
+                  }
+
+                case GameChatMessageRecipient( gameId ) =>
+                  // TODO ! it requires the application it to be set
+                  request.applicationId.flatMap( applications.get ).foreach{ case ( _, appActor ) =>
+                    appActor ! chatMessage
+                  }
+
+
+                case r =>
+                  Logger.debug( "I don't know how to route the chat message for " + r )
+              }
+
+
+
+            case None =>
+              Logger.debug( "I've got a broken chat message - " + request )
+          }
+    }
 
   }
 

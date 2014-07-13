@@ -3,7 +3,7 @@ package actors
 import akka.actor._
 import scala.collection.mutable
 import actors.messages.UserSession._
-import actors.messages.{SingleRecipient, UserSession}
+import actors.messages._
 import models.ApplicationProfile
 import play.api.libs.json.Json
 import scala.concurrent.Future
@@ -33,6 +33,20 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
         }
 
         userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
+      }
+
+    case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
+
+      recipient match {
+
+          case GameChatMessageRecipient( gameId ) if game._id == BSONObjectID( gameId ) =>
+            users.foreach{ case ( _, ( userSession, _, _ ) ) =>
+              userSession.userActor ! c
+            }
+
+          case _ =>
+            // not a valid point
+
       }
 
 //      users = users + ( userSession.sessionId -> userSession )

@@ -132,6 +132,24 @@ class Application( application:models.Application) extends Actor {
       // process the request or send to the corresponding game
       // TODO - implement - none at the moment
 
+    case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
+      recipient match {
+        case ApplicationChatMessageRecipient( appGid ) if appGid == application.gid =>
+          users.foreach{ case (_, ( userSession, _ )) =>
+            userSession.userActor ! c
+          }
+
+        case GameChatMessageRecipient( gameId ) =>
+          games.get( BSONObjectID( gameId ) ).foreach{ case ( game, gameActor ) =>
+            gameActor ! c
+          }
+
+        case _ =>
+
+
+      }
+
+
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
       if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>

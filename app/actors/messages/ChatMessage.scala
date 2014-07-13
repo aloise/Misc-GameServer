@@ -11,7 +11,7 @@ import play.api.libs.json.{JsSuccess, JsString, Json, JsValue}
  * Time: 19:08
  */
 case class ChatMessage (
-  override val event:String = "chat", // event name
+  override val event:String = ChatMessages.eventName, // event name
   override val sessionId: SessionId,
   override val applicationId:Option[String], // target application id
   override val gameId:Option[String], // target game id
@@ -26,8 +26,7 @@ case class ChatMessage (
 
   def toJson:JsValue = Json.obj(
     "event" -> event,
-    "message" -> message,
-    "data" -> "data",
+    "data" -> Json.obj( "message" -> message ),
     "recipient" -> (
       recipient match {
         case a:ApplicationChatMessageRecipient =>
@@ -48,11 +47,13 @@ case class ChatMessage (
 
 abstract class ChatMessageRecipient
 
-case class ApplicationChatMessageRecipient( applicationGid:String ) extends ChatMessageRecipient
+case class ApplicationChatMessageRecipient( applicationId:String ) extends ChatMessageRecipient
 case class GameChatMessageRecipient( gameId:String ) extends ChatMessageRecipient
 case class UserListChatMessageRecipient( usernames:Seq[String] ) extends ChatMessageRecipient
 
 object ChatMessages {
+  val eventName = "chat"
+
 
   implicit val applicationChatMessageRecipientJsonFormat = Json.format[ApplicationChatMessageRecipient]
   implicit val gameChatMessageRecipientJsonFormat = Json.format[GameChatMessageRecipient]
