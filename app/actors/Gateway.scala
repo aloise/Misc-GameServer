@@ -77,13 +77,14 @@ class Gateway extends Actor {
       }
 
 
-    case request:GeneralRequest =>
-
+    case request@GeneralRequest( ChatMessages.eventName,_,_, _, _, _  ) =>
+      processChatMessage( request )
 
 
 
     // route all other requests to the app by the applicationId in the request
-    case request:actors.messages.Request => request.applicationId.flatMap( applications.get ).foreach{
+    case request:actors.messages.Request =>
+      request.applicationId.flatMap( applications.get ).foreach{
         _._2 ! request
       }
 
@@ -116,18 +117,18 @@ class Gateway extends Actor {
           val user = users.get( sessionId )
 
           // let convert it from the general request
-          val chatMessage = ChatMessages.fromGeneralRequest( request, user.map( _.user.username ).getOrElse("_unknown") )
+          val chatMessageOpt = ChatMessages.fromGeneralRequest( request, user.map( _.user ) )
 
-          chatMessage match {
-            case Some( c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) ) =>
+          chatMessageOpt match {
+            case Some( chatMessage@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) ) =>
 
               Logger.debug( "I've got a chat message - " + chatMessage )
 
               recipient match {
                 case UserListChatMessageRecipient( usernames ) =>
                   // TODO optimize this call for a large number of users
-                  usernames flatMap { username =>
-                    users.find{ case ( _, session ) => session.user.username == username }
+                  usernames flatMap { name =>
+                    users.find{ case ( _, session ) => session.user.name == name }
                   } foreach { case ( _, session ) =>
                     session.userActor ! chatMessage
                   }
@@ -218,16 +219,17 @@ class Gateway extends Actor {
     val reader = (
       ( __ \ "id").read[Int] and
       ( __ \ "signature").read[String] and
-      ( __ \ "username").readNullable[String]
+      ( __ \ "name").readNullable[String] and
+      ( __ \ "avatar").readNullable[String]
     ).tupled
 
     request.data.validate(reader).map{
 
-      case (id, signature, maybeUsername ) =>
+      case (id, signature, maybeUsername, avatar ) =>
 
         request.applicationId.flatMap{ applications.get } match {
           case Some( (_, applicationActor )) =>
-             Users.authenticateOrCreate( id, signature, maybeUsername).foreach {
+             Users.authenticateOrCreate( id, signature, maybeUsername, avatar).foreach {
                 case Some(dbUser) =>
                   processUserCreationByApplication(applicationActor, request.sessionId, dbUser)
                 case None =>

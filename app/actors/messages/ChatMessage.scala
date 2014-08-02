@@ -4,7 +4,7 @@ import java.util.Date
 
 import actors.messages.UserSession.SessionId
 import play.api.libs.json.{JsSuccess, JsString, Json, JsValue}
-
+import models.Users.{ jsonFormat => userJsonFormat}
 /**
  * User: aloise
  * Date: 06.07.14
@@ -20,7 +20,7 @@ case class ChatMessage (
 
   message:String,
   recipient: ChatMessageRecipient,
-  sender: String // sender username
+  sender: Option[models.User] // sender username
 
 ) extends Request {
 
@@ -39,7 +39,7 @@ case class ChatMessage (
           JsString( "unknown" )
       }
     ),
-    "sender" -> sender
+    "sender" -> Json.toJson( sender )
   )
 
 
@@ -52,14 +52,14 @@ case class GameChatMessageRecipient( gameId:String ) extends ChatMessageRecipien
 case class UserListChatMessageRecipient( usernames:Seq[String] ) extends ChatMessageRecipient
 
 object ChatMessages {
-  val eventName = "chat"
+  val eventName = "chat-message"
 
 
   implicit val applicationChatMessageRecipientJsonFormat = Json.format[ApplicationChatMessageRecipient]
   implicit val gameChatMessageRecipientJsonFormat = Json.format[GameChatMessageRecipient]
   implicit val userListChatMessageRecipient = Json.format[UserListChatMessageRecipient]
 
-  def fromGeneralRequest( g:GeneralRequest, senderUsername:String ):Option[ChatMessage] = {
+  def fromGeneralRequest( g:GeneralRequest, senderUser: Option[models.User] = None ):Option[ChatMessage] = {
 
     val recipientData = g.data \ "recipient"
 
@@ -71,7 +71,7 @@ object ChatMessages {
     recipientJsReader.asOpt.map { recipientObj =>
       val message = ( g.data \ "message" ).asOpt[String]
 
-      ChatMessage( g.event, g.sessionId, g.applicationId, g.gameId, g.date, g.data, message.getOrElse(""), recipientObj, senderUsername )
+      ChatMessage( g.event, g.sessionId, g.applicationId, g.gameId, g.date, g.data, message.getOrElse(""), recipientObj, senderUser )
     }
 
   }

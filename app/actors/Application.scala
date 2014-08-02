@@ -24,8 +24,8 @@ class Application( application:models.Application) extends Actor {
   protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
   protected var users = Map[SessionId, (UserSession, ApplicationProfile)]()
 
-  private def getUserActorProps(channel:Concurrent.Channel[JsValue], applicationActor:ActorRef ) =
-    Props(classOf[UserActor], channel, applicationActor)
+  private def getUserActorProps(channel:Concurrent.Channel[JsValue], applicationActor:ActorRef, sessionId:SessionId, dbUser:models.User, appProfile:models.ApplicationProfile ) =
+    Props(classOf[UserActor], channel, applicationActor, sessionId, dbUser, appProfile)
 
   def receive = {
 
@@ -45,7 +45,7 @@ class Application( application:models.Application) extends Actor {
 //        println(appProfile)
         val actorName = "User_" + dbUser._id.stringify + "_" + sessionId
 
-        val actor = cntx.actorOf( getUserActorProps(channel, applicationActor), actorName )
+        val actor = cntx.actorOf( getUserActorProps(channel, applicationActor, sessionId, dbUser, appProfile), actorName )
 
         val userSession = UserSession( sessionId, dbUser, actor, applicationActor )
 

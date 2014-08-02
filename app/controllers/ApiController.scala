@@ -22,6 +22,7 @@ import play.api.libs.concurrent.Execution.Implicits._
 import scala.concurrent.duration._
 import play.api.libs.functional.syntax._
 
+import scala.util._
 
 
 object ApiController extends Controller {
@@ -36,7 +37,7 @@ object ApiController extends Controller {
     implicit val timeout = Timeout( 60 seconds )
 
 
-    WebSocket.tryAccept[JsValue]{ request =>
+    WebSocket.tryAccept[String]{ request =>
 
       val sessionId = UserSession.random
 
@@ -46,26 +47,37 @@ object ApiController extends Controller {
 
         case c: Gateway.UserConnectAccepted =>
 
-          val iteratee = Iteratee.foreach[JsValue] { event =>
+          val iteratee = Iteratee.foreach[String] { eventStr =>
 
             // c.receiver ! parseRequestJson(sessionId, event)
             // pass the message to the supervisor
+            Logger.debug("Input message : " + eventStr )
 
-            val parsedRequestOpt = parseRequestJson(sessionId, event)
+            Try( Json.parse( eventStr )) match {
+              case Success( jsValue ) =>
+                val parsedRequestOpt = parseRequestJson(sessionId, jsValue)
 
-            Logger.trace( s"Api WS Parsed Request sessionId : $sessionId : $parsedRequestOpt" )
+                Logger.trace( s"Api WS Parsed Request sessionId : $sessionId : $parsedRequestOpt" )
 
 
-            parsedRequestOpt.foreach {
-              supervisor ! _
+                parsedRequestOpt.foreach {
+                  supervisor ! _
+                }
+
+              case Failure( ex ) =>
+                // parse ex
             }
+
+
+
+
 
 
           }.map { _ =>
             supervisor ! Gateway.UserDisconnected(sessionId)
           }
 
-          Right( (iteratee, c.enumerator) )
+          Right( (iteratee, c.enumerator.map( _.toString() ) ) )
 
         case Gateway.UserConnectFailed(id, error) =>
           // Connection error

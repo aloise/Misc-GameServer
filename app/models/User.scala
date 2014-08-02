@@ -16,8 +16,10 @@ import play.api.libs.concurrent.Execution.Implicits._
 case class User(
   _id: BSONObjectID = BSONObjectID.generate,
   uid:Int, // external user id
-  username: String,
+  name: String,
+  avatar: Option[String] = None,
   created: DateTime = new DateTime()
+
 //  password:String
 //  @Key("company_id")company: Option[ObjectId] = None
 )
@@ -26,9 +28,9 @@ object Users extends Collection[User]("users"){
 
   private val secret = Play.configuration.getString("users.secret").getOrElse("aloise")
 
-  val jsonFormat = Json.format[User]
+  implicit val jsonFormat = Json.format[User]
 
-  def authenticateOrCreate(uid:Int, signature:String, username:Option[String] = None):Future[Option[User]] = {
+  def authenticateOrCreate(uid:Int, signature:String, username:Option[String] = None, avatar:Option[String] = None):Future[Option[User]] = {
 
     if( Crypt.sha1( uid.toString + secret ).toLowerCase == signature.trim.toLowerCase ){
 
@@ -43,7 +45,7 @@ object Users extends Collection[User]("users"){
         case None =>
 
           // create a user
-          val newUser = User( BSONObjectID.generate, uid, username.getOrElse("user_"+uid) )
+          val newUser = User( BSONObjectID.generate, uid, username.getOrElse("user_"+uid), avatar )
           collection.
             insert(  jsonFormat.writes( newUser ).as[JsObject] ).
             map{ lastError => if( lastError.ok ) Some(newUser) else throw lastError }
