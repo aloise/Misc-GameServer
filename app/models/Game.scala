@@ -22,6 +22,12 @@ case class Game (
 
 object Games extends Collection[Game]("games") {
 
+  object Status {
+    val open = "open"
+    val started = "started"
+    val closed = "closed"
+  }
+
   implicit val gameProfileFormat = GameProfiles.format
 
   implicit val format = Json.format[Game]

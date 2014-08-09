@@ -4,12 +4,13 @@ import akka.actor.{PoisonPill, Props, ActorRef, Actor}
 import messages._
 import actors.messages.UserSession.SessionId
 import play.api.libs.iteratee.Concurrent
-import play.api.libs.json.{Json, JsValue}
+import play.api.libs.json._
 import actors.Application.{GameCreate, UserJoinedSuccessfully, UserJoin}
 import play.modules.reactivemongo.json.BSONFormats._
 import reactivemongo.bson._
 import play.api.libs.concurrent.Execution.Implicits._
 import models.{ApplicationProfiles, ApplicationProfile}
+import scala.collection.immutable.Iterable
 import scala.concurrent.Future
 import akka.pattern._
 import play.api.libs.concurrent.Execution.Implicits._
@@ -18,11 +19,13 @@ import play.api.libs.concurrent.Execution.Implicits._
 // Gateway is the parent of the Application
 class Application( application:models.Application) extends Actor {
 
-  import models.Games.{ format => f0 }
+  import models.Users.{ jsonFormat => userJsonFormat }
+  import models.Games.{ format => gameJsonFormat }
   import models.ApplicationProfiles.{ jsonFormat => f1 }
 
   protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
   protected var users = Map[SessionId, (UserSession, ApplicationProfile)]()
+  protected var gameUsers = Map[ BSONObjectID, Set[SessionId] ]() // a mapping from Game.id -> User.SessionId
 
   private def getUserActorProps(channel:Concurrent.Channel[JsValue], applicationActor:ActorRef, sessionId:SessionId, dbUser:models.User, appProfile:models.ApplicationProfile ) =
     Props(classOf[UserActor], channel, applicationActor, sessionId, dbUser, appProfile)
@@ -124,6 +127,8 @@ class Application( application:models.Application) extends Actor {
         gameActor ! PoisonPill
 
         games = games - gameId
+
+        gameUsers = gameUsers - gameId
       }
 
 
@@ -149,6 +154,45 @@ class Application( application:models.Application) extends Actor {
 
       }
 
+    case r@GeneralRequest( Application.gamesGetList, sessionId, _, _, _, data ) =>
+      val maxItems = 100
+      val gameTypeOpt = ( data \ "type" ).asOpt[String] //
+      val limit = ( data \ "limit" ).asOpt[Int].map( i => Math.min( Math.max( maxItems, i ), 1 ) )
+
+
+        users.get( sessionId ).foreach{ case (userSession, _ ) =>
+
+
+          val gamesList = games.
+            filter{
+            case ( gameId, ( game, actor ) ) =>
+              gameTypeOpt.fold( true ){ gameType =>
+                game.status == gameType
+              }
+          }.
+            take(limit.getOrElse(maxItems)).
+            map { case ( gameId, ( game, actor ) ) =>
+            Json.obj(
+              "game" -> Json.toJson( game ),
+              "users" -> gameUsers.getOrElse( gameId, Set() ).flatMap{
+                case userSessionId =>
+                  users.get( userSessionId ).map{
+                    case ( us, appProfile) =>
+                      Json.toJson( us.user )
+                  }
+              }
+            )
+          }
+          val data = Json.obj(
+            "gamesList" -> gamesList,
+            "limit" -> limit,
+            "gameType" -> gameTypeOpt
+          )
+
+          userSession.userActor ! new actors.messages.Response( Application.gamesGetList, new SingleRecipient(sessionId), data  )
+
+        }
+
 
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
@@ -173,13 +217,13 @@ class Application( application:models.Application) extends Actor {
             collection.
             insert(newAppProfile).
             map {
-            lastError =>
-              if( lastError.ok )
-                newAppProfile
-              else
-                throw new Application.ApplicationProfileCreateFailed(lastError.errMsg.getOrElse("application_profile_create_failed"))
-        }
-    }
+              lastError =>
+                if( lastError.ok )
+                  newAppProfile
+                else
+                  throw new Application.ApplicationProfileCreateFailed(lastError.errMsg.getOrElse("application_profile_create_failed"))
+            }
+      }
   }
 
   // TODO override this method for specific games
@@ -189,6 +233,8 @@ class Application( application:models.Application) extends Actor {
 }
 
 object Application {
+
+  val gamesGetList = "games-get-list"
 
   import models.ApplicationProfiles.{ jsonFormat => f0 }
   import models.Applications.{ format => f1 }

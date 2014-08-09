@@ -7,7 +7,7 @@ import play.api.libs.iteratee.{Input, Concurrent}
 import actors.messages.{ChatMessage, SingleRecipient, Response}
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.json._
-import models.Users.jsonFormat
+import models.Users.{ jsonFormat => userJsonFormat }
 /**
  * User: aloise
  * Date: 11/9/13
