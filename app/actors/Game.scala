@@ -2,11 +2,12 @@ package actors
 
 
 import akka.actor._
+import org.joda.time.DateTime
 import scala.collection.mutable
 import actors.messages.UserSession._
 import actors.messages._
 import models.ApplicationProfile
-import play.api.libs.json.Json
+import play.api.libs.json.{JsString, Json}
 import scala.concurrent.Future
 import reactivemongo.bson.BSONObjectID
 import play.api.libs.concurrent.Execution.Implicits._
@@ -68,10 +69,22 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
       }
 
-//      users = users + ( userSession.sessionId -> userSession )
 
-    case r:messages.Response =>
-//      application ! r
+    case Game.UserLeave( user ) =>
+      users.get( user.sessionId ).foreach{ case ( session, appProfile, gameProfile ) =>
+
+        val closedGameProfile = gameProfile.copy(
+          status = models.GameProfiles.Status.completed,
+          completed = Some( new DateTime() )
+        )
+
+        val dbCompleteF = models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj( "$set" -> Json.obj( "gameProfiles.$" -> closedGameProfile ) )  )
+
+        users = users - user.sessionId
+
+      }
+
+      user.userActor ! new Response( Game.Message.gameLeave, SingleRecipient(user.sessionId), JsString( "ok" ) )
   }
 
 
@@ -114,10 +127,12 @@ object Game {
 
   object Message {
     val gameJoin = "game-join"
+    val gameLeave = "game-leave"
   }
 
 
   case class UserJoin( userSession:UserSession, applicationProfile: models.ApplicationProfile )
+  case class UserLeave( userSession:UserSession )
 
   // it's sent to user
   case class UserJoinedSuccessfully(sessionId:SessionId, game:models.Game, gameProfile:models.GameProfile) extends
