@@ -7,7 +7,7 @@ import scala.collection.mutable
 import actors.messages.UserSession._
 import actors.messages._
 import models.ApplicationProfile
-import play.api.libs.json.{JsString, Json}
+import play.api.libs.json.{JsObject, JsValue, JsString, Json}
 import scala.concurrent.Future
 import reactivemongo.bson.BSONObjectID
 import play.api.libs.concurrent.Execution.Implicits._
@@ -28,6 +28,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   protected var users = Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
+  private var status:String = game.status
 
   def receive = {
 
@@ -125,6 +126,13 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
       application ! Application.GameUserLeaved( game._id, sessionId )
 
 
+    case actors.messages.GeneralRequest( event, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
+      // basically just broadcast it
+      users.values.
+        filter( _._1.sessionId != fromSessionId ).
+        foreach{ case ( userSession, _, _ ) =>
+          userSession.userActor ! new Game.GameSpecificResponse( event, SingleRecipient( userSession.sessionId ), data, Some( Json.obj( "user" -> userSession.user ) ) )
+        }
 
   }
 
@@ -176,6 +184,19 @@ object Game {
   object Message {
     val gameJoin = "game-join"
     val gameLeave = "game-leave"
+    val gameStart = "game-start"
+  }
+
+  class GameSpecificResponse( event:String, recipients: Recipients, data:JsValue, fromData:Option[JsValue] = None, isSuccess:Boolean = true ) extends Response( event, recipients, data, isSuccess ) {
+
+    override def toJson:JsValue = ( super.toJson match {
+      case obj@JsObject( fields ) =>
+        obj
+      case _ =>
+        Json.obj()
+    } ) ++ fromData.fold( Json.obj() ){ from =>
+      Json.obj( "from" -> from )
+    }
   }
 
 
@@ -183,8 +204,10 @@ object Game {
   case class UserLeave( userSession:UserSession )
 
   // it's sent to user
+/*
   case class UserJoinedSuccessfully(sessionId:SessionId, game:models.Game, gameProfile:models.GameProfile) extends
     actors.messages.Response("game.user_joined_successfully", SingleRecipient(sessionId), Json.toJson( Json.obj( "game" -> game, "gameProfile" -> gameProfile ) ) )
+*/
 
   class GameProfileCreateFailed(msg:String) extends Throwable
 }

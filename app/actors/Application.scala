@@ -155,6 +155,18 @@ class Application( application:models.Application) extends Actor {
       responseMsg pipeTo sender
 
 
+
+    case Application.GameDataUpdated( game, gameUsers ) =>
+      games.get(game._id).foreach{ case (oldGameData, actor ) =>
+
+        // TODO - we may send some game status updates here
+
+        games = games.updated( game._id, (game, actor) )
+      }
+
+
+
+
     case Application.GameFinished( gameId ) =>
 
       games.get(gameId).foreach{ case (game, gameActor) =>
@@ -373,7 +385,9 @@ object Application {
   case class GameUserJoined( gameId: BSONObjectID, id:SessionId )
   case class GameUserLeaved( gameId: BSONObjectID, id:SessionId )
 
-  case class GameFinished( gameId: BSONObjectID ) extends InternalMessage
+  case class GameDataUpdated( game: models.Game, gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] )
+
+  case class GameFinished( game: BSONObjectID ) extends InternalMessage
 
   class ApplicationProfileCreateFailed(msg:String) extends Throwable
 
