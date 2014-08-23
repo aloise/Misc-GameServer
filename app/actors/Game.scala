@@ -91,37 +91,17 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
         case None =>
           val newGameProfile = models.GameProfile( BSONObjectID.generate, appProfile._id, appProfile.userId )
 
-          models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj( "$push" -> Json.obj( "gameProfiles" -> newGameProfile ) )  )
-
-          Future.successful( newGameProfile )
-
-      }
-
-   /*{
-    models.GameProfiles.
-      collection.
-      find(Json.obj("applicationProfileId" -> appProfile._id)).
-      one[models.GameProfile].
-      flatMap {
-        case Some(gameProfile) =>
-          Future.successful(gameProfile)
-        case None =>
-
-          val newGameProfile = models.GameProfile( BSONObjectID.generate, appProfile._id, appProfile.userId )
-
-          models.GameProfiles.
-            insert(newGameProfile).
-            map {
-            lastError =>
+          models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj( "$push" -> Json.obj( "gameProfiles" -> newGameProfile ) )  ).
+            map { lastError =>
               if (lastError.ok) {
                 newGameProfile
               } else {
-                throw new Game.GameProfileCreateFailed(lastError.errMsg.getOrElse("game_profile_create_failed"))
+                throw new Game.GameProfileCreateFailed(lastError.errMsg.getOrElse("db_game_profile_create_failed"))
               }
 
-          }
-    }
-  }*/
+           }
+
+      }
 
 
 }
