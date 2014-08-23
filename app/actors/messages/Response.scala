@@ -46,22 +46,32 @@ case class MultipleRecipients(recipients:Seq[SessionId]) extends Recipients {
 class Response(
   val event:String,
   val recipients: Recipients,
-  val data:JsValue
+  val data:JsValue,
+  val isSuccess:Boolean = true
 ) {
   def toJson:JsValue = Json.obj(
     "event" -> event,
-    "data" -> data
+    "data" -> data,
+    "success" -> isSuccess
   )
 }
 
 
+object Response {
+  def apply(event: String, recipients: Recipients, data: JsValue ) =
+    new Response(event, recipients, data, true)
+
+  def apply(event: String, recipientSession: SessionId, data: JsValue ) =
+    new Response(event, SingleRecipient(recipientSession), data, true)
+}
+
 
 object ErrorResponse {
   def apply( event:String, recipients: Recipients, errorMessage:String = "error") =
-    new Response(event, recipients, Json.obj( "error" -> errorMessage ) )
+    new Response(event, recipients, Json.obj( "error" -> errorMessage ), false )
 
   def apply( event:String, recipientSession: SessionId, errorMessage:String ) =
-    new Response(event, SingleRecipient(recipientSession), Json.obj( "error" -> errorMessage ) )
+    new Response(event, SingleRecipient(recipientSession), Json.obj( "error" -> errorMessage ), false )
 }
 
 

@@ -82,7 +82,7 @@ class Application( application:models.Application) extends Actor {
         users = users - sessionId
       }
 
-    case GameCreate( rawGameData, creatorSessionId ) =>
+    case GameCreate( rawGameData, creatorSessionId, autojoinCreator ) =>
 
       val cntx = context
       val appActor = context.self
@@ -102,13 +102,19 @@ class Application( application:models.Application) extends Actor {
 
               val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game_"+newGameData._id.stringify )
 
-              // auto-join the game creator
-              creatorUserSession.foreach{ case( userSession, userAppProfile) =>
-                gameActor ! Game.UserJoin( userSession, userAppProfile )
-              }
+              games = games + ( newGameData._id -> ( newGameData, gameActor ) )
 
-              games.synchronized{
-                games = games + ( newGameData._id -> ( newGameData, gameActor ) )
+              if( autojoinCreator ) {
+
+                // auto-join the game creator
+                creatorUserSession.foreach { case (userSession, userAppProfile) =>
+
+                  userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, Json.obj( "game" -> newGameData ) )
+
+                  gameActor ! Game.UserJoin(userSession, userAppProfile)
+
+
+                }
               }
 
               Application.GameCreatedSuccessfully(newGameData, gameActor)
@@ -133,10 +139,89 @@ class Application( application:models.Application) extends Actor {
       }
 
 
-    // process an application-wide event - gameId is empty
-    case actors.messages.GeneralRequest( event, sessionId, applicationId, None, date, data ) =>
-      // process the request or send to the corresponding game
-      // TODO - implement - none at the moment
+    // external game create request
+    case r@GeneralRequest( Application.Message.gameCreate, sessionId, _, _, _, data ) =>
+
+      users.get( sessionId ).fold {
+        // user was not found
+
+      } { case ( userSession, appUserProfile ) =>
+
+        data.validate( Application.Validators.gameCreate ).fold(
+        invalid => {
+          userSession.userActor ! actors.messages.ErrorResponse ( Application.Message.gameCreate, sessionId, "invalid_format"  )
+
+        },
+        { case ( gameType, speed, karmaRestrict, ratingRestrict, playersMaxCount, welcomeMessage, dataOpt ) =>
+
+          val userGameProfile = models.GameProfile(
+            applicationProfileId = appUserProfile._id,
+            status = models.GameProfiles.Status.inProgress,
+            userId = userSession.user._id
+          )
+
+          // TODO - perform some checks
+          val gameData = models.Game(
+            applicationId = application._id,
+            speed = speed,
+            `type` = gameType,
+            creatorGameProfileId = Some( userGameProfile._id ),
+            gameProfiles = List( userGameProfile ),
+            karmaRestrict = karmaRestrict,
+            ratingRestrict = ratingRestrict,
+            playersMaxCount = playersMaxCount,
+            welcomeMessage = welcomeMessage.getOrElse(""),
+            data = dataOpt.getOrElse(JsNull)
+          )
+
+          self ! GameCreate( gameData, Some(sessionId), autojoinCreator = true )
+
+        }
+
+        )
+
+      }
+
+
+
+    case r@GeneralRequest( Application.Message.gamesGetList, sessionId, _, _, _, data ) =>
+      val maxItems = 100
+      val gameTypeOpt = ( data \ "type" ).asOpt[String] //
+      val limit = ( data \ "limit" ).asOpt[Int].map( i => Math.min( Math.max( maxItems, i ), 1 ) )
+
+
+      users.get( sessionId ).foreach{ case (userSession, _ ) =>
+
+
+        val gamesList = games.
+          filter{
+          case ( gameId, ( game, actor ) ) =>
+            gameTypeOpt.fold( true ){ gameType =>
+              game.status == gameType
+            }
+        }.
+          take(limit.getOrElse(maxItems)).
+          map { case ( gameId, ( game, actor ) ) =>
+          Json.obj(
+            "game" -> Json.toJson( game ),
+            "users" -> gameUsers.getOrElse( gameId, Set() ).flatMap{
+              case userSessionId =>
+                users.get( userSessionId ).map{
+                  case ( us, appProfile) =>
+                    Json.toJson( us.user )
+                }
+            }
+          )
+        }
+        val data = Json.obj(
+          "gamesList" -> gamesList,
+          "limit" -> limit,
+          "gameType" -> gameTypeOpt
+        )
+
+        userSession.userActor ! Response( Application.Message.gamesGetList,sessionId, data  )
+
+      }
 
     case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
       recipient match {
@@ -155,99 +240,18 @@ class Application( application:models.Application) extends Actor {
 
       }
 
-
-    // external game create request
-    case r@GeneralRequest( Application.Message.gameCreate, sessionId, _, _, _, data ) =>
-
-
-      users.get( sessionId ).fold {
-        // user was not found
-
-      } { case ( userSession, appUserProfile ) =>
-
-         data.validate( Application.Validators.gameCreate ).fold(
-           invalid => {
-             userSession.userActor ! actors.messages.ErrorResponse ( Application.Message.gameCreate, sessionId, "invalid_format"  )
-
-           },
-           { case ( gameType, speed, karmaRestrict, ratingRestrict, playersMaxCount, welcomeMessage, dataOpt ) =>
-
-             val userGameProfile = models.GameProfile(
-               applicationProfileId = appUserProfile._id,
-               status = models.GameProfiles.Status.inProgress,
-               userId = userSession.user._id
-             )
-
-             // TODO - perform some checks
-             val gameData = models.Game(
-                applicationId = application._id,
-                speed = speed,
-                `type` = gameType,
-                creatorGameProfileId = Some( userGameProfile._id ),
-                gameProfiles = List( userGameProfile ),
-                karmaRestrict = karmaRestrict,
-                ratingRestrict = ratingRestrict,
-                playersMaxCount = playersMaxCount,
-                welcomeMessage = welcomeMessage.getOrElse(""),
-                data = dataOpt.getOrElse(JsNull)
-             )
-
-             self ! GameCreate( gameData, Some(sessionId) )
-
-
-
-           }
-
-         )
-
-      }
-
-
-
-    case r@GeneralRequest( Application.Message.gamesGetList, sessionId, _, _, _, data ) =>
-      val maxItems = 100
-      val gameTypeOpt = ( data \ "type" ).asOpt[String] //
-      val limit = ( data \ "limit" ).asOpt[Int].map( i => Math.min( Math.max( maxItems, i ), 1 ) )
-
-
-        users.get( sessionId ).foreach{ case (userSession, _ ) =>
-
-
-          val gamesList = games.
-            filter{
-            case ( gameId, ( game, actor ) ) =>
-              gameTypeOpt.fold( true ){ gameType =>
-                game.status == gameType
-              }
-          }.
-            take(limit.getOrElse(maxItems)).
-            map { case ( gameId, ( game, actor ) ) =>
-            Json.obj(
-              "game" -> Json.toJson( game ),
-              "users" -> gameUsers.getOrElse( gameId, Set() ).flatMap{
-                case userSessionId =>
-                  users.get( userSessionId ).map{
-                    case ( us, appProfile) =>
-                      Json.toJson( us.user )
-                  }
-              }
-            )
-          }
-          val data = Json.obj(
-            "gamesList" -> gamesList,
-            "limit" -> limit,
-            "gameType" -> gameTypeOpt
-          )
-
-          userSession.userActor ! new actors.messages.Response( Application.Message.gamesGetList, new SingleRecipient(sessionId), data  )
-
-        }
-
-
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
       if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>
         games( BSONObjectID( gameId ))._2 ! r
+
+
+
+      // process an application-wide event - gameId is empty
+    case actors.messages.GeneralRequest( event, sessionId, applicationId, None, date, data ) =>
+      // process the request or send to the corresponding game
+      // TODO - implement - none at the moment
+
 
   }
 
@@ -313,7 +317,7 @@ object Application {
   case class UserJoin( id:SessionId, dbUser:models.User, channel: Concurrent.Channel[JsValue]) extends InternalMessage
   case class UserJoinedSuccessfully( userSession:UserSession, applicationProfile: ApplicationProfile ) extends InternalMessage
 
-  case class GameCreate( data:models.Game, creator:Option[SessionId] = None ) extends InternalMessage
+  case class GameCreate( data:models.Game, creator:Option[SessionId] = None, autojoinCreator: Boolean = true ) extends InternalMessage
   case class GameCreatedSuccessfully( game:models.Game, gameActor:ActorRef ) extends InternalMessage
   case class GameCreateFailed( reason:String ) extends InternalMessage
 

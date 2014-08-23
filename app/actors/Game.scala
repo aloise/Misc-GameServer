@@ -47,7 +47,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
             "gameProfile" -> gameProfile
           )
 
-          userSession.userActor ! new Response( Game.Message.gameJoin, SingleRecipient( userSession.sessionId ), jsonData )
+          userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 
 
         case Failure( t ) =>
@@ -84,7 +84,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
       }
 
-      user.userActor ! new Response( Game.Message.gameLeave, SingleRecipient(user.sessionId), JsString( "ok" ) )
+      user.userActor ! Response( Game.Message.gameLeave, user.sessionId, JsString( "ok" ) )
   }
 
 

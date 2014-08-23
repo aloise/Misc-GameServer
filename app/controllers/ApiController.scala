@@ -68,11 +68,6 @@ object ApiController extends Controller {
                 // parse ex
             }
 
-
-
-
-
-
           }.map { _ =>
             supervisor ! Gateway.UserDisconnected(sessionId)
           }
