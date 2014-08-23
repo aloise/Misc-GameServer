@@ -31,16 +31,14 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   def receive = {
 
-    case Game.UserJoin( userSession, appProfile ) =>
+    case Game.UserJoin( userSession, appProfile, isCreator ) =>
 
-      // TODO - Implement a check. We may decline a user join attempt
+      // TODO - Implement a check. We may decline a user join attempt exluding the creator
 
       val gameProfileF = getGameProfileForUser(appProfile)
 
       gameProfileF onComplete {
         case Success( gameProfile ) =>
-
-
 
           // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
           val jsonData = Json.obj(
@@ -62,6 +60,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
           }
 
           users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
+
+          application ! Application.GameUserJoined( game._id, userSession.sessionId )
 
           userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 
@@ -98,7 +98,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
           "$set" -> Json.obj(
             "gameProfiles.$" -> closedGameProfile
           )
-        )  )
+        ) )
 
         val dataToNotify = Json.obj(
           "user" -> session.user,
@@ -111,6 +111,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
           notifySession.userActor ! Response( Game.Message.gameLeave, notifySession.sessionId, dataToNotify )
         }
 
+        application ! Application.GameUserLeaved( game._id, user.sessionId )
+
         users = users - user.sessionId
 
       }
@@ -119,6 +121,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
       users.get( sessionId ).foreach { case ( u, _, _ ) =>
         self ! Game.UserLeave( u )
       }
+
+      application ! Application.GameUserLeaved( game._id, sessionId )
 
 
 
@@ -175,7 +179,7 @@ object Game {
   }
 
 
-  case class UserJoin( userSession:UserSession, applicationProfile: models.ApplicationProfile )
+  case class UserJoin( userSession:UserSession, applicationProfile: models.ApplicationProfile, isCreator:Boolean = false )
   case class UserLeave( userSession:UserSession )
 
   // it's sent to user

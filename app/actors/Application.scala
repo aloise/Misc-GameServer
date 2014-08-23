@@ -24,9 +24,9 @@ class Application( application:models.Application) extends Actor {
   import models.Games.{ format => gameJsonFormat }
   import models.ApplicationProfiles.{ jsonFormat => f1 }
 
-  protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()
+  protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()  // Game._id
   protected var users = Map[SessionId, (UserSession, ApplicationProfile)]()
-  protected var gameUsers = Map[ BSONObjectID, Set[SessionId] ]() // a mapping from Game.id -> User.SessionId
+  protected var gameUsers = Map[ BSONObjectID, Set[SessionId] ]() // a mapping from Game._id -> User.SessionId
 
   private def getUserActorProps(channel:Concurrent.Channel[JsValue], applicationActor:ActorRef, sessionId:SessionId, dbUser:models.User, appProfile:models.ApplicationProfile ) =
     Props(classOf[UserActor], channel, applicationActor, sessionId, dbUser, appProfile)
@@ -80,6 +80,7 @@ class Application( application:models.Application) extends Actor {
 
         // remove him from the list
         users = users - sessionId
+
       }
 
     case GameCreate( rawGameData, creatorSessionId, autojoinCreator ) =>
@@ -108,7 +109,7 @@ class Application( application:models.Application) extends Actor {
 
                 // auto-join the game creator
                 creatorUserSession.foreach { case (userSession, userAppProfile) =>
-
+                  gameUsers = gameUsers + ( newGameData._id -> Set( userSession.sessionId ) )
                   gameActor ! Game.UserJoin(userSession, userAppProfile)
 
                 }
@@ -118,12 +119,32 @@ class Application( application:models.Application) extends Actor {
                 "game" -> newGameData
               )
 
+              val cretorResponseData = creatorUserSession.fold( Json.obj() ){ case (userSession, userAppProfile) =>
+                Json.obj(
+                  "creator" -> Json.obj(
+                    "user" -> userSession.user,
+                    "applicationProfile" -> userAppProfile
+                  )
+                )
+              }
+
               // send the game create action back
               creatorUserSession.foreach { case (userSession, userAppProfile) =>
                 userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson )
               }
 
-              Application.GameCreatedSuccessfully(newGameData, gameActor)
+
+
+              users.values.foreach{ case ( userSession, _ ) =>
+
+                val alreadyJoined = gameUsers.values.exists( _.contains( userSession.sessionId ) )
+                if( !alreadyJoined ) {
+                  userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson ++ cretorResponseData )
+                }
+              }
+
+
+              Application.GameCreatedSuccessfully(newGameData, creatorSessionId, gameActor)
 
             } else {
               Application.GameCreateFailed( lastError.errMsg.getOrElse("game_create_error") )
@@ -132,6 +153,7 @@ class Application( application:models.Application) extends Actor {
           }
 
       responseMsg pipeTo sender
+
 
     case Application.GameFinished( gameId ) =>
 
@@ -188,6 +210,27 @@ class Application( application:models.Application) extends Actor {
 
       }
 
+
+    case Application.GameUserJoined( gameId, userSessionId ) =>
+
+      val existingSet = gameUsers.getOrElse( gameId, Set() )
+
+      gameUsers = gameUsers.updated( gameId, existingSet + userSessionId )
+
+
+
+    case Application.GameUserLeaved( gameId, userSessionId ) =>
+
+      if( gameUsers.contains(gameId)){
+
+        val set = gameUsers.getOrElse(gameId, Set()) - userSessionId
+
+        gameUsers =
+          if( set.isEmpty )
+            gameUsers - gameId
+          else
+            gameUsers.updated( gameId, set )
+      }
 
 
     case r@GeneralRequest( Application.Message.gamesGetList, sessionId, _, _, _, data ) =>
@@ -324,8 +367,11 @@ object Application {
   case class UserJoinedSuccessfully( userSession:UserSession, applicationProfile: ApplicationProfile ) extends InternalMessage
 
   case class GameCreate( data:models.Game, creator:Option[SessionId] = None, autojoinCreator: Boolean = true ) extends InternalMessage
-  case class GameCreatedSuccessfully( game:models.Game, gameActor:ActorRef ) extends InternalMessage
+  case class GameCreatedSuccessfully( game:models.Game, gameCreatorSessionId:Option[SessionId], gameActor:ActorRef ) extends InternalMessage
   case class GameCreateFailed( reason:String ) extends InternalMessage
+
+  case class GameUserJoined( gameId: BSONObjectID, id:SessionId )
+  case class GameUserLeaved( gameId: BSONObjectID, id:SessionId )
 
   case class GameFinished( gameId: BSONObjectID ) extends InternalMessage
 
