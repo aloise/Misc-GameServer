@@ -6,12 +6,15 @@ import reactivemongo.bson._
 import play.modules.reactivemongo.json.BSONFormats._
 import play.api.libs.json.Json
 
+
+// There is no intention to keep it as separate collection - It's included inside the Game
 case class GameProfile (
   _id: BSONObjectID = BSONObjectID.generate,
   applicationProfileId:BSONObjectID,
+  userId: BSONObjectID,
   status:String = GameProfiles.Status.pending,
-  rating:Int = 0,
-  karma:Int = 0,
+  rating:Int = 0, // rating delta from this game
+  karma:Int = 0, // rating karma delta from this game
   created:DateTime = new DateTime,
   completed:Option[DateTime] = None
 )

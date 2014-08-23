@@ -3,7 +3,7 @@ package models
 import play.api.Play.current
 import org.joda.time.DateTime
 import reactivemongo.bson._
-import play.api.libs.json.Json
+import play.api.libs.json.{JsValue, JsNull, Json}
 import play.modules.reactivemongo.json.BSONFormats._
 
 
@@ -11,21 +11,32 @@ import play.modules.reactivemongo.json.BSONFormats._
 case class Game (
   _id: BSONObjectID = BSONObjectID.generate,
   applicationId:BSONObjectID,
-  subtypeId:Int,
-  status:String,
-  created:DateTime,
-  started:Option[DateTime],
-  finished:Option[DateTime],
-  creatorGameProfileId: Option[BSONObjectID],
-  gameProfiles:List[GameProfile] = Nil
+  `type`:Int = 0 ,
+  status:String = Games.Status.Waiting,
+  created:DateTime = new DateTime(),
+  started:Option[DateTime] = None,
+  finished:Option[DateTime] = None,
+  creatorGameProfileId: Option[BSONObjectID], // points on Game.gameProfiles record
+  gameProfiles:List[GameProfile] = Nil,
+
+  karmaRestrict:Int = 0,
+  ratingRestrict:Int = 0,
+
+  speed:Int,
+  playersMaxCount:Int = 0,
+
+  welcomeMessage:String = "",
+
+  data:JsValue = JsNull
 )
 
 object Games extends Collection[Game]("games") {
 
   object Status {
-    val open = "open"
-    val started = "started"
-    val closed = "closed"
+    val Waiting = "WAITING"
+    val Active = "ACTIVE"
+    val Closed = "CLOSED"
+    val Finished = "FINISHED"
   }
 
   implicit val gameProfileFormat = GameProfiles.format

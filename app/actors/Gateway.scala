@@ -8,7 +8,6 @@ import java.util.Date
 import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import models.{Users, User}
 import play.api.libs.functional.syntax._
-import sun.io.Converters
 import scala.concurrent.duration._
 import actors.messages.UserSession.SessionId
 import akka.util.Timeout

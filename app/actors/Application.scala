@@ -9,6 +9,7 @@ import actors.Application.{GameCreate, UserJoinedSuccessfully, UserJoin}
 import play.modules.reactivemongo.json.BSONFormats._
 import reactivemongo.bson._
 import play.api.libs.concurrent.Execution.Implicits._
+import play.api.libs.functional.syntax._
 import models.{ApplicationProfiles, ApplicationProfile}
 import scala.collection.immutable.Iterable
 import scala.concurrent.Future
@@ -81,16 +82,16 @@ class Application( application:models.Application) extends Actor {
         users = users - sessionId
       }
 
-    case GameCreate( data, creatorSessionId ) =>
+    case GameCreate( rawGameData, creatorSessionId ) =>
 
       val cntx = context
       val appActor = context.self
       val creatorUserSession = creatorSessionId.flatMap( users.get )
 
-      val newGameData = data.copy(
+      val newGameData = rawGameData.copy(
         _id = BSONObjectID.generate,
-        applicationId = application._id,
-        creatorGameProfileId = creatorUserSession.map( _._1.user._id )
+        applicationId = application._id
+//        creatorGameProfileId = creatorUserSession.map( _._1.user._id )
       )
 
       val responseMsg =
@@ -154,7 +155,56 @@ class Application( application:models.Application) extends Actor {
 
       }
 
-    case r@GeneralRequest( Application.gamesGetList, sessionId, _, _, _, data ) =>
+
+    // external game create request
+    case r@GeneralRequest( Application.Message.gameCreate, sessionId, _, _, _, data ) =>
+
+
+      users.get( sessionId ).fold {
+        // user was not found
+
+      } { case ( userSession, appUserProfile ) =>
+
+         data.validate( Application.Validators.gameCreate ).fold(
+           invalid => {
+             userSession.userActor ! actors.messages.ErrorResponse ( Application.Message.gameCreate, sessionId, "invalid_format"  )
+
+           },
+           { case ( gameType, speed, karmaRestrict, ratingRestrict, playersMaxCount, welcomeMessage, dataOpt ) =>
+
+             val userGameProfile = models.GameProfile(
+               applicationProfileId = appUserProfile._id,
+               status = models.GameProfiles.Status.inProgress,
+               userId = userSession.user._id
+             )
+
+             // TODO - perform some checks
+             val gameData = models.Game(
+                applicationId = application._id,
+                speed = speed,
+                `type` = gameType,
+                creatorGameProfileId = Some( userGameProfile._id ),
+                gameProfiles = List( userGameProfile ),
+                karmaRestrict = karmaRestrict,
+                ratingRestrict = ratingRestrict,
+                playersMaxCount = playersMaxCount,
+                welcomeMessage = welcomeMessage.getOrElse(""),
+                data = dataOpt.getOrElse(JsNull)
+             )
+
+             self ! GameCreate( gameData, Some(sessionId) )
+
+
+
+           }
+
+         )
+
+      }
+
+
+
+    case r@GeneralRequest( Application.Message.gamesGetList, sessionId, _, _, _, data ) =>
       val maxItems = 100
       val gameTypeOpt = ( data \ "type" ).asOpt[String] //
       val limit = ( data \ "limit" ).asOpt[Int].map( i => Math.min( Math.max( maxItems, i ), 1 ) )
@@ -189,7 +239,7 @@ class Application( application:models.Application) extends Actor {
             "gameType" -> gameTypeOpt
           )
 
-          userSession.userActor ! new actors.messages.Response( Application.gamesGetList, new SingleRecipient(sessionId), data  )
+          userSession.userActor ! new actors.messages.Response( Application.Message.gamesGetList, new SingleRecipient(sessionId), data  )
 
         }
 
@@ -234,7 +284,27 @@ class Application( application:models.Application) extends Actor {
 
 object Application {
 
-  val gamesGetList = "games-get-list"
+  // Standard messages
+
+  object Message {
+    val gameCreate = "game-create"
+
+    val gamesGetList = "games-get-list"
+
+  }
+
+  object Validators {
+    val gameCreate =
+      (
+        ( __ \ "type").read[Int] and
+        ( __ \ "speed").read[Int] and
+        ( __ \ "karmaRestrict").read[Int] and
+        ( __ \ "ratingRestrict").read[Int] and
+        ( __ \ "playersMaxCount").read[Int] and
+        ( __ \ "welcomeMessage").readNullable[String] and
+        ( __ \ "data").readNullable[JsValue]
+      ).tupled
+  }
 
   import models.ApplicationProfiles.{ jsonFormat => f0 }
   import models.Applications.{ format => f1 }
