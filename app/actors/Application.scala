@@ -1,7 +1,7 @@
 package actors
 
 import akka.actor.{PoisonPill, Props, ActorRef, Actor}
-import messages._
+import actors.messages._
 import actors.messages.UserSession.SessionId
 import play.api.libs.iteratee.Concurrent
 import play.api.libs.json._
@@ -109,12 +109,18 @@ class Application( application:models.Application) extends Actor {
                 // auto-join the game creator
                 creatorUserSession.foreach { case (userSession, userAppProfile) =>
 
-                  userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, Json.obj( "game" -> newGameData ) )
-
                   gameActor ! Game.UserJoin(userSession, userAppProfile)
 
-
                 }
+              }
+
+              val responseJson = Json.obj(
+                "game" -> newGameData
+              )
+
+              // send the game create action back
+              creatorUserSession.foreach { case (userSession, userAppProfile) =>
+                userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson )
               }
 
               Application.GameCreatedSuccessfully(newGameData, gameActor)

@@ -23,6 +23,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   import models.GameProfiles.{format => f0}
   import models.Games.{ format => f1 }
+  import models.Users.{ jsonFormat => f2 }
+  import models.ApplicationProfiles.{ jsonFormat => f3 }
 
   protected var users = Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
@@ -37,15 +39,29 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
       gameProfileF onComplete {
         case Success( gameProfile ) =>
-          users.synchronized{
-            users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
-          }
+
+
 
           // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
           val jsonData = Json.obj(
             "game" -> game,
-            "gameProfile" -> gameProfile
+            "gameProfile" -> gameProfile,
+            "users" -> users.values.map {
+              case ( sess2, appProfile2, gameProfile2 ) =>
+                Json.obj(
+                  "user" -> sess2.user,
+                  "applicationProfile" -> appProfile2,
+                  "gameProfile" -> gameProfile2
+                )
+            }
           )
+
+          // notify all existing users
+          users.values.foreach { case ( notifySession, _, _ ) =>
+            notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
+          }
+
+          users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
 
           userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 
@@ -78,13 +94,34 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
           completed = Some( new DateTime() )
         )
 
-        val dbCompleteF = models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj( "$set" -> Json.obj( "gameProfiles.$" -> closedGameProfile ) )  )
+        models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj(
+          "$set" -> Json.obj(
+            "gameProfiles.$" -> closedGameProfile
+          )
+        )  )
+
+        val dataToNotify = Json.obj(
+          "user" -> session.user,
+          "applicationProfile" -> appProfile,
+          "gameProfile" -> gameProfile
+        )
+
+        // notufy all users about the event
+        users.values.foreach { case ( notifySession, _, _ ) =>
+          notifySession.userActor ! Response( Game.Message.gameLeave, notifySession.sessionId, dataToNotify )
+        }
 
         users = users - user.sessionId
 
       }
 
-      user.userActor ! Response( Game.Message.gameLeave, user.sessionId, JsString( "ok" ) )
+    case Gateway.UserDisconnected( sessionId ) =>
+      users.get( sessionId ).foreach { case ( u, _, _ ) =>
+        self ! Game.UserLeave( u )
+      }
+
+
+
   }
 
 
