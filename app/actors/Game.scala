@@ -90,7 +90,14 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   def getGameProfileForUser(appProfile: ApplicationProfile): Future[models.GameProfile] =
     models.Games.collection.
-      find( Json.obj( "gameProfiles.applicationProfileId" -> appProfile._id ) ).
+      find( Json.obj(
+        "gameProfiles" -> Json.obj(
+            "$elemMatch" -> Json.obj(
+              "applicationProfileId" -> appProfile._id,
+              "status" -> Json.obj( "$ne" -> models.GameProfiles.Status.completed )
+            )
+          )
+      ) ).
       one[models.Game].
       flatMap{
         case Some(gameDb) =>
