@@ -30,93 +30,29 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   private var status:String = game.status
 
+
+
+
   def receive = {
 
     case Game.UserJoin( userSession, appProfile, isCreator ) =>
-
-      // TODO - Implement a check. We may decline a user join attempt exluding the creator
-
-      val gameProfileF = getGameProfileForUser(appProfile)
-
-      gameProfileF onComplete {
-        case Success( gameProfile ) =>
-
-          // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
-          val jsonData = Json.obj(
-            "game" -> game,
-            "gameProfile" -> gameProfile,
-            "users" -> users.values.map {
-              case ( sess2, appProfile2, gameProfile2 ) =>
-                Json.obj(
-                  "user" -> sess2.user,
-                  "applicationProfile" -> appProfile2,
-                  "gameProfile" -> gameProfile2
-                )
-            }
-          )
-
-          // notify all existing users
-          users.values.foreach { case ( notifySession, _, _ ) =>
-            notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
-          }
-
-          users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
-
-          application ! Application.GameUserJoined( game._id, userSession.sessionId )
-
-          userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
-
-
-        case Failure( t ) =>
-          userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, t.getMessage )
-      }
+      gameUserJoin( userSession, appProfile, isCreator)
 
 
     case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
 
       recipient match {
-
           case GameChatMessageRecipient( gameId ) if game._id == BSONObjectID( gameId ) =>
             users.foreach{ case ( _, ( userSession, _, _ ) ) =>
               userSession.userActor ! c
             }
-
           case _ =>
             // not a valid point
-
       }
 
 
     case Game.UserLeave( user ) =>
-      users.get( user.sessionId ).foreach{ case ( session, appProfile, gameProfile ) =>
-
-        val closedGameProfile = gameProfile.copy(
-          status = models.GameProfiles.Status.completed,
-          completed = Some( new DateTime() )
-        )
-
-        models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj(
-          "$set" -> Json.obj(
-            "gameProfiles.$" -> closedGameProfile
-          )
-        ) )
-
-        val dataToNotify = Json.obj(
-          "user" -> session.user,
-          "applicationProfile" -> appProfile,
-          "gameProfile" -> gameProfile
-        )
-
-        // notufy all users about the event
-        users.values.foreach { case ( notifySession, _, _ ) =>
-          notifySession.userActor ! Response( Game.Message.gameLeave, notifySession.sessionId, dataToNotify )
-        }
-
-        application ! Application.GameUserLeaved( game._id, user.sessionId )
-
-        users = users - user.sessionId
-
-      }
+      gameUserLeave( user )
 
     case Gateway.UserDisconnected( sessionId ) =>
       users.get( sessionId ).foreach { case ( u, _, _ ) =>
@@ -141,6 +77,89 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   }
 
+  def gameUserLeave(user: UserSession): Unit = {
+    users.get( user.sessionId ).foreach{ case ( session, appProfile, gameProfile ) =>
+
+      val closedGameProfile = gameProfile.copy(
+        status = models.GameProfiles.Status.completed,
+        completed = Some( new DateTime() )
+      )
+
+      models.Games.collection.update( Json.obj("_id" -> game._id ), Json.obj(
+        "$set" -> Json.obj(
+          "gameProfiles.$" -> closedGameProfile
+        )
+      ) )
+
+      val dataToNotify = Json.obj(
+        "user" -> session.user,
+        "applicationProfile" -> appProfile,
+        "gameProfile" -> gameProfile
+      )
+
+      // notify all users about the event
+      users.values.foreach { case ( notifySession, _, _ ) =>
+        notifySession.userActor ! Response( Game.Message.gameLeave, notifySession.sessionId, dataToNotify )
+      }
+
+      application ! Application.GameUserLeaved( game._id, user.sessionId )
+
+      users = users - user.sessionId
+
+    }
+  }
+
+
+  def gameUserJoin(userSession: UserSession, appProfile: ApplicationProfile, isCreator: Boolean): Unit = {
+    // TODO - Implement a check. We may decline a user join attempt exluding the creator
+
+    status match {
+
+      case models.Games.Status.Waiting =>
+
+          val gameProfileF = getGameProfileForUser(appProfile)
+
+          gameProfileF onComplete {
+            case Success( gameProfile ) =>
+
+              // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
+              val jsonData = Json.obj(
+                "game" -> game,
+                "gameProfile" -> gameProfile,
+                "users" -> users.values.map {
+                  case ( sess2, appProfile2, gameProfile2 ) =>
+                    Json.obj(
+                      "user" -> sess2.user,
+                      "applicationProfile" -> appProfile2,
+                      "gameProfile" -> gameProfile2
+                    )
+                }
+              )
+
+              // notify all existing users
+              users.values.foreach { case ( notifySession, _, _ ) =>
+                notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
+              }
+
+              users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
+
+              application ! Application.GameUserJoined( game._id, userSession.sessionId )
+
+              userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
+
+
+            case Failure( t ) =>
+              userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, t.getMessage )
+          }
+
+      case _ =>
+        val msg = "game_is_not_in_waiting_state"
+        application ! Application.GameUserJoinFailed( game._id, userSession.sessionId, new Game.GameJoinException( msg ) )
+        userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, msg )
+    }
+
+
+  }
 
   def getGameProfileForUser(appProfile: ApplicationProfile): Future[models.GameProfile] =
     models.Games.collection.
@@ -191,6 +210,8 @@ object Game {
     val gameLeave = "game-leave"
     val gameStart = "game-start"
   }
+
+  class GameJoinException(m:String) extends Exception( m )
 
   class GameSpecificResponse( event:String, recipients: Recipients, data:JsValue, fromData:Option[JsValue] = None, isSuccess:Boolean = true ) extends Response( event, recipients, data, isSuccess ) {
 

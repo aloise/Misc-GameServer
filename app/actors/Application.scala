@@ -230,6 +230,8 @@ class Application( application:models.Application) extends Actor {
       gameUsers = gameUsers.updated( gameId, existingSet + userSessionId )
 
 
+    case Application.GameUserJoinFailed( gameId, userSessionId, error ) =>
+
 
     case Application.GameUserLeaved( gameId, userSessionId ) =>
 
@@ -384,8 +386,9 @@ object Application {
   case class GameCreatedSuccessfully( game:models.Game, gameCreatorSessionId:Option[SessionId], gameActor:ActorRef ) extends InternalMessage
   case class GameCreateFailed( reason:String ) extends InternalMessage
 
-  case class GameUserJoined( gameId: BSONObjectID, id:SessionId )
-  case class GameUserLeaved( gameId: BSONObjectID, id:SessionId )
+  case class GameUserJoined( gameId: BSONObjectID, userSessionId:SessionId )
+  case class GameUserJoinFailed( gameId: BSONObjectID, userSessionId:SessionId, reason: Throwable )
+  case class GameUserLeaved( gameId: BSONObjectID, userSessionId:SessionId )
 
   case class GameDataUpdated( game: models.Game, gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] )
 
