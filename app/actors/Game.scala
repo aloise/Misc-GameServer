@@ -127,12 +127,17 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
 
     case actors.messages.GeneralRequest( event, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
-      // basically just broadcast it
-      users.values.
-        filter( _._1.sessionId != fromSessionId ).
-        foreach{ case ( userSession, _, _ ) =>
+      if( users.contains( fromSessionId ) ){
+        // basically just broadcast it
+        users.values.
+          filter( _._1.sessionId != fromSessionId ).
+          foreach{ case ( userSession, _, _ ) =>
           userSession.userActor ! new Game.GameSpecificResponse( event, SingleRecipient( userSession.sessionId ), data, Some( Json.obj( "user" -> userSession.user ) ) )
         }
+      } else {
+        // it's not allowed to send messages before the game join
+      }
+
 
   }
 
