@@ -28,15 +28,18 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   protected var users = Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
-  private var status:String = game.status
+  protected var status:String = game.status
 
-
+  protected var creator:Option[UserSession] = None
 
 
   def receive = {
 
     case Game.UserJoin( userSession, appProfile, isCreator ) =>
       gameUserJoin( userSession, appProfile, isCreator)
+      if( isCreator ){
+        creator = Some(userSession)
+      }
 
 
     case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
@@ -61,6 +64,20 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
       application ! Application.GameUserLeaved( game._id, sessionId )
 
+
+    case actors.messages.GeneralRequest( Game.Message.gameStart, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
+      if( status == models.Games.Status.Waiting ){
+
+        status =  models.Games.Status.Active
+        // TODO - update the DB, notify users etc
+
+      } else {
+        val msg = "game_is_not_in_waiting_state"
+        users.get(fromSessionId).foreach { case (userSession, _, _) =>
+          userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, msg )
+        }
+
+      }
 
     case actors.messages.GeneralRequest( event, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
       if( users.contains( fromSessionId ) ){
