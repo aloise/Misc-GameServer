@@ -139,7 +139,7 @@ class Application( application:models.Application) extends Actor {
 
                 val alreadyJoined = gameUsers.values.exists( _.contains( userSession.sessionId ) )
                 if( !alreadyJoined ) {
-                  userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson ++ cretorResponseData )
+                  userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson ++ cretorResponseData )
                 }
               }
 
@@ -356,6 +356,8 @@ object Application {
 
     val gamesGetList = "games-get-list"
 
+    // server responses
+    val gameNew = "game-new"
   }
 
   object Validators {
