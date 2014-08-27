@@ -71,6 +71,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
         status =  models.Games.Status.Active
         // TODO - update the DB, notify users etc
 
+        application ! getGameDataMessage()
+
       } else {
         val msg = "game_is_not_in_waiting_state"
         users.get(fromSessionId).foreach { case (userSession, _, _) =>
@@ -94,7 +96,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   }
 
-  def gameUserLeave(user: UserSession): Unit = {
+  def gameUserLeave(user: UserSession):Unit = {
     users.get( user.sessionId ).foreach{ case ( session, appProfile, gameProfile ) =>
 
       val closedGameProfile = gameProfile.copy(
@@ -120,12 +122,22 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
       }
 
       application ! Application.GameUserLeaved( game._id, user.sessionId )
+      application ! getGameDataMessage()
 
       users = users - user.sessionId
 
     }
   }
 
+
+  def getGameDataMessage():Unit = {
+
+    val creatorOpt = creator.flatMap( creatorId => users.get( creatorId.sessionId ) )
+
+    val creatorGameProfileIdOpt = creatorOpt.map( _._3._id )
+
+    Application.GameDataUpdated( game.copy( status = status, creatorGameProfileId = creatorGameProfileIdOpt ), creatorOpt, users )
+  }
 
   def gameUserJoin(userSession: UserSession, appProfile: ApplicationProfile, isCreator: Boolean): Unit = {
     // TODO - Implement a check. We may decline a user join attempt exluding the creator
@@ -138,6 +150,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
           gameProfileF onComplete {
             case Success( gameProfile ) =>
+
+              users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
 
               // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
               val jsonData = Json.obj(
@@ -158,11 +172,12 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
                 notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
               }
 
-              users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
+
 
               application ! Application.GameUserJoined( game._id, userSession.sessionId )
+              application ! getGameDataMessage()
 
-              userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
+              // userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 
 
             case Failure( t ) =>

@@ -10,7 +10,7 @@ import play.modules.reactivemongo.json.BSONFormats._
 import reactivemongo.bson._
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.functional.syntax._
-import models.{ApplicationProfiles, ApplicationProfile}
+import models.{GameProfile, ApplicationProfiles, ApplicationProfile}
 import scala.collection.immutable.Iterable
 import scala.concurrent.Future
 import akka.pattern._
@@ -22,6 +22,7 @@ class Application( application:models.Application) extends Actor {
 
   import models.Users.{ jsonFormat => userJsonFormat }
   import models.Games.{ format => gameJsonFormat }
+  import models.GameProfiles.{ format => f2 }
   import models.ApplicationProfiles.{ jsonFormat => f1 }
 
   protected var games = Map[BSONObjectID, ( models.Game, ActorRef )]()  // Game._id
@@ -116,10 +117,12 @@ class Application( application:models.Application) extends Actor {
               }
 
               val responseJson = Json.obj(
-                "game" -> newGameData
+                "game" -> newGameData,
+                "users" -> Json.arr()
+
               )
 
-              val cretorResponseData = creatorUserSession.fold( Json.obj() ){ case (userSession, userAppProfile) =>
+              val creatorResponseData = creatorUserSession.fold( Json.obj() ){ case (userSession, userAppProfile) =>
                 Json.obj(
                   "creator" -> Json.obj(
                     "user" -> userSession.user,
@@ -133,13 +136,11 @@ class Application( application:models.Application) extends Actor {
                 userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson )
               }
 
-
-
               users.values.foreach{ case ( userSession, _ ) =>
 
                 val alreadyJoined = gameUsers.values.exists( _.contains( userSession.sessionId ) )
                 if( !alreadyJoined ) {
-                  userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson ++ cretorResponseData )
+                  userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson ++ creatorResponseData )
                 }
               }
 
@@ -156,13 +157,14 @@ class Application( application:models.Application) extends Actor {
 
 
 
-    case Application.GameDataUpdated( game, gameUsers ) =>
+    case Application.GameDataUpdated( game, creator, gameUserMap ) =>
       games.get(game._id).foreach{ case (oldGameData, actor ) =>
-
         // TODO - we may send some game status updates here
-
         games = games.updated( game._id, (game, actor) )
       }
+
+      broadcastGameData( game, creator, gameUserMap )
+
 
 
 
@@ -318,6 +320,35 @@ class Application( application:models.Application) extends Actor {
 
   }
 
+  def broadcastGameData( game: models.Game, creator: Option[(UserSession, models.ApplicationProfile, models.GameProfile)], gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] ) = {
+
+      implicit val jsonGameUser = new Writes[(UserSession, ApplicationProfile, GameProfile)] {
+        override def writes(o: (UserSession, ApplicationProfile, GameProfile)): JsValue =
+            Json.obj(
+              "user" -> o._1.user,
+              "applicationProfile" -> o._2,
+              "gameProfile" -> o._3
+          )
+      }
+
+      val responseJson = Json.obj(
+        "game" -> game,
+        "users" -> gameUsers.values,
+        "creator" -> creator
+      )
+      // push update to all awaiting users
+      users.values.foreach{ case ( userSession, _ ) =>
+
+        val alreadyInGame = this.gameUsers.exists{ case ( _, set ) => set.contains( userSession.sessionId ) }
+
+        if( !alreadyInGame ){
+          userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson  )
+        }
+
+      }
+
+
+  }
 
   def getApplicationProfileForUser(dbUser: models.User): Future[ApplicationProfile] = {
     ApplicationProfiles.
@@ -390,7 +421,7 @@ object Application {
   case class GameUserJoinFailed( gameId: BSONObjectID, userSessionId:SessionId, reason: Throwable )
   case class GameUserLeaved( gameId: BSONObjectID, userSessionId:SessionId )
 
-  case class GameDataUpdated( game: models.Game, gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] )
+  case class GameDataUpdated( game: models.Game, creator: Option[(UserSession, models.ApplicationProfile, models.GameProfile)], gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] )
 
   case class GameFinished( game: BSONObjectID ) extends InternalMessage
 
