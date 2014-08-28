@@ -163,7 +163,7 @@ class Application( application:models.Application) extends Actor {
         games = games.updated( game._id, (game, actor) )
       }
 
-      broadcastGameData( game, creator, gameUserMap )
+      broadcastGameDataUpdate( game, creator, gameUserMap )
 
 
 
@@ -249,6 +249,18 @@ class Application( application:models.Application) extends Actor {
       }
 
 
+    case actors.messages.GeneralRequest( Game.Message.gameJoin, fromSessionId, applicationId, Some( gameId ), date, data ) =>
+      games.get( BSONObjectID( gameId ) ).foreach{ case ( game, gameActor ) =>
+
+        users.get( fromSessionId ).foreach{ case ( userSession, appProfile ) =>
+          gameActor ! Game.UserJoin( userSession, appProfile )
+        }
+
+
+      }
+
+
+
     case r@GeneralRequest( Application.Message.gamesGetList, sessionId, _, _, _, data ) =>
       val maxItems = 100
       val gameTypeOpt = ( data \ "type" ).asOpt[String] //
@@ -320,7 +332,7 @@ class Application( application:models.Application) extends Actor {
 
   }
 
-  def broadcastGameData( game: models.Game, creator: Option[(UserSession, models.ApplicationProfile, models.GameProfile)], gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] ) = {
+  def broadcastGameDataUpdate( game: models.Game, creator: Option[(UserSession, models.ApplicationProfile, models.GameProfile)], gameUsers:Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ] ) = {
 
       implicit val jsonGameUser = new Writes[(UserSession, ApplicationProfile, GameProfile)] {
         override def writes(o: (UserSession, ApplicationProfile, GameProfile)): JsValue =
