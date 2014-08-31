@@ -71,7 +71,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
         status =  models.Games.Status.Active
         // TODO - update the DB, notify users etc
 
-        application ! getGameDataMessage()
+        application ! getGameDataMessage
 
       } else {
         val msg = "game_is_not_in_waiting_state"
@@ -122,7 +122,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
       }
 
       application ! Application.GameUserLeaved( game._id, user.sessionId )
-      application ! getGameDataMessage()
+      application ! getGameDataMessage
 
       users = users - user.sessionId
 
@@ -130,7 +130,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
   }
 
 
-  def getGameDataMessage():Unit = {
+  def getGameDataMessage = {
 
     val creatorOpt = creator.flatMap( creatorId => users.get( creatorId.sessionId ) )
 
@@ -175,7 +175,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
 
               application ! Application.GameUserJoined( game._id, userSession.sessionId )
-              application ! getGameDataMessage()
+              application ! getGameDataMessage
 
               // userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 

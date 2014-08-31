@@ -317,6 +317,28 @@ class Application( application:models.Application) extends Actor {
 
       }
 
+
+    // get users list
+    case actors.messages.GeneralRequest( Application.Message.getUsers, sessionId, _, _, _, data ) =>
+
+      data.validate( Application.Validators.getUsersRequestOptions ).foreach {
+        case ( sort, filter, page, limit ) =>
+
+          val findQuery = filter.fold( Json.obj() ){
+            _ match {
+              case JsObject( fields ) =>
+                Json.obj()
+              case _ =>
+                Json.obj()
+            }
+          }
+
+
+          // models.Users.collection.find()
+      }
+
+
+
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
       if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>
@@ -354,7 +376,7 @@ class Application( application:models.Application) extends Actor {
         val alreadyInGame = this.gameUsers.exists{ case ( _, set ) => set.contains( userSession.sessionId ) }
 
         if( !alreadyInGame ){
-          userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson  )
+          userSession.userActor ! Response( Application.Message.gameDataUpdated, userSession.sessionId, responseJson  )
         }
 
       }
@@ -397,12 +419,18 @@ object Application {
   // Standard messages
 
   object Message {
+
+    // user requests
     val gameCreate = "game-create"
 
     val gamesGetList = "games-get-list"
 
+    val getUsers = "get-users"
+
     // server responses
     val gameNew = "game-new"
+
+    val gameDataUpdated = "game-updated"
   }
 
   object Validators {
@@ -416,6 +444,14 @@ object Application {
         ( __ \ "welcomeMessage").readNullable[String] and
         ( __ \ "data").readNullable[JsValue]
       ).tupled
+
+    val getUsersRequestOptions = (
+      ( __ \ "sort" ).readNullable[String] and
+        ( __ \ "filter" ).readNullable[JsObject] and
+        ( __ \ "page" ).readNullable[Int] and
+        ( __ \ "limit" ).readNullable[Int]
+    ).tupled
+
   }
 
   import models.ApplicationProfiles.{ jsonFormat => f0 }
