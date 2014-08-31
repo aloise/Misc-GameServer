@@ -16,6 +16,8 @@ import scala.concurrent.Future
 import akka.pattern._
 import play.api.libs.concurrent.Execution.Implicits._
 
+import scala.util.Try
+
 
 // Gateway is the parent of the Application
 class Application( application:models.Application) extends Actor {
@@ -322,21 +324,22 @@ class Application( application:models.Application) extends Actor {
     case actors.messages.GeneralRequest( Application.Message.getUsers, sessionId, _, _, _, data ) =>
 
       data.validate( Application.Validators.getUsersRequestOptions ).foreach {
-        case ( sort, filter, page, limit ) =>
+        case (sort, filter, page, limit) =>
 
-          val findQuery = filter.fold( Json.obj() ){
-            _ match {
-              case JsObject( fields ) =>
-                Json.obj()
-              case _ =>
-                Json.obj()
-            }
+          val findQuery = filter.fold(Json.obj()) {
+
+            case JsObject(fields) =>
+              fields.foldLeft(Json.obj()) { case (total, (field, v)) =>
+                field match {
+                  case "user._id" => total +("_id", JsString(v.toString()))
+                  case "user.name" => total +("name", JsString(v.toString()))
+                  case "user.uid" => Try(v.toString.toInt).map(uid => total +("uid", JsNumber(uid))).getOrElse(total)
+                  case _ => total
+                }
+              }
+            // models.Users.collection.find()
           }
-
-
-          // models.Users.collection.find()
       }
-
 
 
     // pass the event to the corresponding game
