@@ -326,6 +326,43 @@ class Application( application:models.Application) extends Actor {
       val maxLimit = 100
       val defaultLimit = 1
 
+      val validator = ( ( __ \ "page" ).readNullable[Int] and ( __ \ "limit" ).readNullable[Int] ).tupled
+
+      data.validate( validator ).map { case ( pageOpt, limitOpt ) =>
+          val page = Math.max( 0, pageOpt.getOrElse(0) )
+          val limit = Math.min( limitOpt.getOrElse(defaultLimit), maxLimit )
+
+          val cursor = models.ApplicationProfiles.collection.find(
+            Json.obj( "applicationId" -> application._id ),
+            Json.obj( "rating" -> 1 ) // TODO - add karma rating as well
+          ).options(QueryOpts( page*limit, limit)).cursor[ApplicationProfile]
+
+          cursor.collect[List]().flatMap { appProfiles =>
+            val userIds = appProfiles.map(  _.userId )
+
+            models.Users.collection.find( Json.obj( "_id" -> Json.obj( "$in" -> userIds ) ) ).cursor[models.User].collect[List]().map { users =>
+              val userById = users.map( u => u._id -> u ).toMap
+
+              val data:JsValue = Json.toJson( appProfiles.map { appProfile =>
+                Json.obj(
+                  "applicationProfile" -> appProfile,
+                  "user" -> userById.get( appProfile.userId )
+                )
+              })
+
+              Response( Application.Message.getTopUsers, sessionId, data )
+
+            }
+
+
+          }
+
+
+
+      } recoverTotal { errors =>
+        Future.successful( ErrorResponse("invalid_request_data", sessionId, "Invalid Request Data" ) )
+      } pipeTo sender
+
 
     case actors.messages.GeneralRequest( Application.Message.getUser, sessionId, _, _, _, data ) =>
 
@@ -333,7 +370,7 @@ class Application( application:models.Application) extends Actor {
         models.Users.collection.find( Json.obj("uid" -> uid ) ).one[models.User].flatMap{
           case Some( user ) =>
 
-            models.ApplicationProfiles.collection.find(Json.obj( "_id" -> user._id )).one[ApplicationProfile].map {
+            models.ApplicationProfiles.collection.find(Json.obj( "_id" -> user._id, "applicationId" -> application._id )).one[ApplicationProfile].map {
               case Some(appProfile) =>
                   Response( Application.Message.getTopUsers, sessionId, Json.obj( "user" -> user, "applicationProfile" -> appProfile ) )
               case None =>
