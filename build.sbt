@@ -5,14 +5,14 @@ import PlayKeys._
 
 name := "GameServer"
 
-version := "1.1-SNAPSHOT"
+version := "1.2-SNAPSHOT"
 
 resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
 
 scalaVersion := "2.11.1"
 
 libraryDependencies ++= Seq(
-  "org.reactivemongo" %% "play2-reactivemongo" % "0.11.0-SNAPSHOT",
+  "org.reactivemongo" %% "play2-reactivemongo" % "0.10.5.0.akka23",
   "io.backchat.inflector" %% "scala-inflector" % "1.3.5"
 )
 

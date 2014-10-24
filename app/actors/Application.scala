@@ -7,6 +7,7 @@ import play.api.libs.iteratee.Concurrent
 import play.api.libs.json._
 import actors.Application.{GameCreate, UserJoinedSuccessfully, UserJoin}
 import play.modules.reactivemongo.json.BSONFormats._
+import reactivemongo.api.QueryOpts
 import reactivemongo.bson._
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.functional.syntax._
@@ -320,8 +321,40 @@ class Application( application:models.Application) extends Actor {
       }
 
 
+    case actors.messages.GeneralRequest( Application.Message.getTopUsers, sessionId, _, _, _, data ) =>
+
+      val maxLimit = 100
+      val defaultLimit = 1
+
+
+    case actors.messages.GeneralRequest( Application.Message.getUser, sessionId, _, _, _, data ) =>
+
+      data.validate( ( __ \ "uid" ).read[Int] ).map { uid =>
+        models.Users.collection.find( Json.obj("uid" -> uid ) ).one[models.User].flatMap{
+          case Some( user ) =>
+
+            models.ApplicationProfiles.collection.find(Json.obj( "_id" -> user._id )).one[ApplicationProfile].map {
+              case Some(appProfile) =>
+                  Response( Application.Message.getTopUsers, sessionId, Json.obj( "user" -> user, "applicationProfile" -> appProfile ) )
+              case None =>
+                ErrorResponse("user_application_profile_not_found", sessionId, "User Application Profile Not Found" )
+            }
+
+          case None =>
+            Future.successful( ErrorResponse("user_not_found", sessionId, "User Not Found" )  )
+
+        }
+
+      } recoverTotal { errors =>
+        Future.successful( ErrorResponse("user_not_found_error", sessionId, "User Not Found" ) )
+      } pipeTo sender
+
+
     // get users list
-    case actors.messages.GeneralRequest( Application.Message.getUsers, sessionId, _, _, _, data ) =>
+    /*case actors.messages.GeneralRequest( Application.Message.getUsers, sessionId, _, _, _, data ) =>
+
+      val maxLimit = 100
+      val defaultLimit = 1
 
       data.validate( Application.Validators.getUsersRequestOptions ).foreach {
         case (sort, filter, page, limit) =>
@@ -331,15 +364,35 @@ class Application( application:models.Application) extends Actor {
             case JsObject(fields) =>
               fields.foldLeft(Json.obj()) { case (total, (field, v)) =>
                 field match {
-                  case "user._id" => total +("_id", JsString(v.toString()))
-                  case "user.name" => total +("name", JsString(v.toString()))
-                  case "user.uid" => Try(v.toString.toInt).map(uid => total +("uid", JsNumber(uid))).getOrElse(total)
+                  case "user._id" => total + ("_id", Json.toJson( BSONObjectID(v.toString())))
+                  case "user.name" => total + ("name", JsString(v.toString()))
+                  case "user.uid" => Try( v.toString().toInt ).map(uid => total +("uid", JsNumber(uid))).getOrElse(total)
                   case _ => total
                 }
               }
-            // models.Users.collection.find()
+
           }
-      }
+
+          val sortObj = sort match {
+
+            case Some("rating") =>
+
+            case _ =>
+              Json.obj("_id" -> 1 )
+          }
+
+          val topLimit = Math.min( limit.getOrElse(defaultLimit) , maxLimit )
+
+          val userList =
+            models.Users.collection.
+              find( findQuery ).
+              sort(  ).
+              options( QueryOpts( page.getOrElse(0)*topLimit, topLimit ) ).
+              cursor[models.User].
+              collect[List]()
+
+
+      }*/
 
 
     // pass the event to the corresponding game
@@ -428,12 +481,16 @@ object Application {
 
     val gamesGetList = "games-get-list"
 
-    val getUsers = "get-users"
+//    val getUsers = "get-users"
 
     // server responses
     val gameNew = "game-new"
 
     val gameDataUpdated = "game-updated"
+
+    val getTopUsers = "get-top-users"
+
+    val getUser = "get-user"
   }
 
   object Validators {
@@ -480,6 +537,8 @@ object Application {
 
   case class UserJoinedSuccessfullyResponse(sessionId:SessionId, application: models.Application, applicationProfile: models.ApplicationProfile) extends
     actors.messages.Response("application.user_joined_successfully", SingleRecipient(sessionId), Json.toJson( Json.obj( "application" -> application, "applicationProfile" -> applicationProfile ) ) )
+
+
 
 
 }
