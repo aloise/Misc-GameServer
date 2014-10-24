@@ -25,6 +25,8 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
   import models.Games.{ format => f1 }
   import models.Users.{ jsonFormat => f2 }
   import models.ApplicationProfiles.{ jsonFormat => f3 }
+  import scala.collection.immutable.Queue
+  import Game.GameMessage
 
   protected var users = Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
@@ -32,11 +34,14 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
 
   protected var creator:Option[UserSession] = None
 
+  protected var messages:Queue[GameMessage] = Queue()
+
 
   def receive = {
 
     case Game.UserJoin( userSession, appProfile, isCreator ) =>
       gameUserJoin( userSession, appProfile, isCreator)
+
       if( isCreator ){
         creator = Some(userSession)
       }
@@ -49,6 +54,10 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
             users.foreach{ case ( _, ( userSession, _, _ ) ) =>
               userSession.userActor ! c
             }
+
+
+            enqueueMessage( c, users.map{ case ( _, ( _, appProfile, _ ) ) =>  appProfile._id  } )
+
           case _ =>
             // not a valid point
       }
@@ -57,20 +66,21 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
     case Game.UserLeave( user ) =>
       gameUserLeave( user )
 
+
     case Gateway.UserDisconnected( sessionId ) =>
       users.get( sessionId ).foreach { case ( u, _, _ ) =>
         self ! Game.UserLeave( u )
       }
-
       application ! Application.GameUserLeaved( game._id, sessionId )
+
 
 
     case actors.messages.GeneralRequest( Game.Message.gameStart, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
       if( status == models.Games.Status.Waiting ){
 
         status =  models.Games.Status.Active
-        // TODO - update the DB, notify users etc
 
+        // TODO - update the DB, notify users etc
         application ! getGameDataMessage
 
       } else {
@@ -78,22 +88,31 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
         users.get(fromSessionId).foreach { case (userSession, _, _) =>
           userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, msg )
         }
-
       }
 
     case actors.messages.GeneralRequest( event, fromSessionId, applicationId, Some( gameId ), date, data ) if BSONObjectID( gameId ) == game._id =>
       if( users.contains( fromSessionId ) ){
         // basically just broadcast it
+
+        val msg = new Game.GameSpecificResponse( event, EmptyRecipient , data, Some( Json.obj( "user" -> users.get( fromSessionId ).map( _._1.user ) ) ) )
+
         users.values.
           filter( _._1.sessionId != fromSessionId ).
           foreach{ case ( userSession, _, _ ) =>
-          userSession.userActor ! new Game.GameSpecificResponse( event, SingleRecipient( userSession.sessionId ), data, Some( Json.obj( "user" -> userSession.user ) ) )
-        }
+            userSession.userActor ! msg.copy( recipients = SingleRecipient( userSession.sessionId )  )
+          }
+
+          enqueueMessage( msg, users.map{ case ( _, ( _, appProfile, _ ) ) => appProfile._id  } )
+
       } else {
         // it's not allowed to send messages before the game join
       }
 
 
+  }
+
+  def enqueueMessage( message: Any, recipientApplicationProfileIds:Iterable[BSONObjectID] = Seq() ) = {
+    messages = messages.enqueue( GameMessage( message, recipientApplicationProfileIds ) )
   }
 
   def gameUserLeave(user: UserSession):Unit = {
@@ -140,7 +159,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
   }
 
   def gameUserJoin(userSession: UserSession, appProfile: ApplicationProfile, isCreator: Boolean): Unit = {
-    // TODO - Implement a check. We may decline a user join attempt exluding the creator
+    // TODO - Implement a check. We may decline a user join attempt excluding the creator
 
     status match {
 
@@ -245,7 +264,7 @@ object Game {
 
   class GameJoinException(m:String) extends Exception( m )
 
-  class GameSpecificResponse( event:String, recipients: Recipients, data:JsValue, fromData:Option[JsValue] = None, isSuccess:Boolean = true ) extends Response( event, recipients, data, isSuccess ) {
+  case class GameSpecificResponse( override val event:String, override val recipients: Recipients, override val data:JsValue, fromData:Option[JsValue] = None, override val isSuccess:Boolean = true ) extends Response( event, recipients, data, isSuccess ) {
 
     override def toJson:JsValue = ( super.toJson match {
       case obj@JsObject( fields ) =>
@@ -260,6 +279,8 @@ object Game {
 
   case class UserJoin( userSession:UserSession, applicationProfile: models.ApplicationProfile, isCreator:Boolean = false )
   case class UserLeave( userSession:UserSession )
+
+  case class GameMessage( message: Any, recipientApplicationProfileIds: Iterable[BSONObjectID] = Seq() )
 
   // it's sent to user
 /*
