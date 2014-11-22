@@ -3,6 +3,7 @@ package actors
 
 import akka.actor._
 import org.joda.time.DateTime
+import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import actors.messages.UserSession._
 import actors.messages._
@@ -28,7 +29,7 @@ class Game(application:ActorRef, game:models.Game) extends Actor {
   import scala.collection.immutable.Queue
   import Game.GameMessage
 
-  protected var users = Map[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
+  protected var users = ListMap[SessionId, (UserSession, models.ApplicationProfile, models.GameProfile ) ]()
 
   protected var status:String = game.status
 

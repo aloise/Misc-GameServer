@@ -579,3 +579,7 @@ object Application {
 
 
 }
+
+object ApplicationFactory {
+
+}
