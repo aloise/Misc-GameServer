@@ -20,7 +20,7 @@ import scala.util._
  * Date: 9/4/13
  * Time: 11:08 PM
  */
-class Game(application:ActorRef, game:models.Game) extends Actor {
+abstract class Game(application:ActorRef, game:models.Game) extends Actor {
 
   import models.GameProfiles.{format => f0}
   import models.Games.{ format => f1 }

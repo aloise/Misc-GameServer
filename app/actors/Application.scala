@@ -21,7 +21,7 @@ import scala.util.Try
 
 
 // Gateway is the parent of the Application
-class Application( application:models.Application) extends Actor {
+abstract class Application( application:models.Application) extends Actor {
 
   import models.Users.{ jsonFormat => userJsonFormat }
   import models.Games.{ format => gameJsonFormat }
@@ -105,50 +105,58 @@ class Application( application:models.Application) extends Actor {
           map { case lastError =>
             if( lastError.ok ){
 
-              val gameActor = cntx.actorOf( getGameActorProps(newGameData, appActor), "Game_"+newGameData._id.stringify )
+              getGameActorProps(newGameData, appActor).map{ gameActorProps =>
 
-              games = games + ( newGameData._id -> ( newGameData, gameActor ) )
+                  val gameActor = cntx.actorOf( gameActorProps, "Game_"+newGameData._id.stringify )
 
-              if( autojoinCreator ) {
+                  games = games + ( newGameData._id -> ( newGameData, gameActor ) )
 
-                // auto-join the game creator
-                creatorUserSession.foreach { case (userSession, userAppProfile) =>
-                  gameUsers = gameUsers + ( newGameData._id -> Set( userSession.sessionId ) )
-                  gameActor ! Game.UserJoin(userSession, userAppProfile)
+                  if( autojoinCreator ) {
 
-                }
-              }
+                    // auto-join the game creator
+                    creatorUserSession.foreach { case (userSession, userAppProfile) =>
+                      gameUsers = gameUsers + ( newGameData._id -> Set( userSession.sessionId ) )
+                      gameActor ! Game.UserJoin(userSession, userAppProfile)
 
-              val responseJson = Json.obj(
-                "game" -> newGameData,
-                "users" -> Json.arr()
+                    }
+                  }
 
-              )
+                  val responseJson = Json.obj(
+                    "game" -> newGameData,
+                    "users" -> Json.arr()
 
-              val creatorResponseData = creatorUserSession.fold( Json.obj() ){ case (userSession, userAppProfile) =>
-                Json.obj(
-                  "creator" -> Json.obj(
-                    "user" -> userSession.user,
-                    "applicationProfile" -> userAppProfile
                   )
-                )
+
+                  val creatorResponseData = creatorUserSession.fold( Json.obj() ){ case (userSession, userAppProfile) =>
+                    Json.obj(
+                      "creator" -> Json.obj(
+                        "user" -> userSession.user,
+                        "applicationProfile" -> userAppProfile
+                      )
+                    )
+                  }
+
+                  // send the game create action back
+                  creatorUserSession.foreach { case (userSession, userAppProfile) =>
+                    userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson )
+                  }
+
+                  users.values.foreach{ case ( userSession, _ ) =>
+
+                    val alreadyJoined = gameUsers.values.exists( _.contains( userSession.sessionId ) )
+                    if( !alreadyJoined ) {
+                      userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson ++ creatorResponseData )
+                    }
+                  }
+
+
+                  Application.GameCreatedSuccessfully(newGameData, creatorSessionId, gameActor)
+
+              } getOrElse {
+                Application.GameCreateFailed( "game_create_actor_failed" )
               }
 
-              // send the game create action back
-              creatorUserSession.foreach { case (userSession, userAppProfile) =>
-                userSession.userActor ! Response( Application.Message.gameCreate, userSession.sessionId, responseJson )
-              }
 
-              users.values.foreach{ case ( userSession, _ ) =>
-
-                val alreadyJoined = gameUsers.values.exists( _.contains( userSession.sessionId ) )
-                if( !alreadyJoined ) {
-                  userSession.userActor ! Response( Application.Message.gameNew, userSession.sessionId, responseJson ++ creatorResponseData )
-                }
-              }
-
-
-              Application.GameCreatedSuccessfully(newGameData, creatorSessionId, gameActor)
 
             } else {
               Application.GameCreateFailed( lastError.errMsg.getOrElse("game_create_error") )
@@ -502,8 +510,8 @@ class Application( application:models.Application) extends Actor {
   }
 
   // TODO override this method for specific games
-  def getGameActorProps( gameProfile:models.Game, app:ActorRef = context.self ) =
-    Props(classOf[actors.Game], app, gameProfile)
+  def getGameActorProps( gameProfile:models.Game, app:ActorRef = context.self ):Option[Props]
+
 
 }
 

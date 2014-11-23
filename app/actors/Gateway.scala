@@ -27,6 +27,12 @@ class Gateway extends Actor {
 
   import models.Applications.format
 
+  val applicationActors = Map[String, Class[ _ <: actors.Application ]](
+    "1" -> classOf[actors.applications.dixie.DixieApplication]
+//    "2" ->
+  )
+
+
 //  private val receiverProps = Props[WebSocketReceiver]
 //  private val senderProps = Props[WebSocketSender]
 
@@ -70,8 +76,11 @@ class Gateway extends Actor {
 
       models.Applications.find( Json.obj("gid" -> appId ) ).map { apps =>
         apps.headOption.map { app =>
-            val applicationActor = context.actorOf( getApplicationActorProps(app) )
-            applications = applications + ( app.gid -> ( app, applicationActor ) )
+            getApplicationActorProps(app).map { applicationActorProps =>
+              val applicationActor = context.actorOf( applicationActorProps )
+              applications = applications + ( app.gid -> ( app, applicationActor ) )
+
+            }
         }
       }
 
@@ -160,8 +169,12 @@ class Gateway extends Actor {
 
   }
 
-  def getApplicationActorProps(dbApplication:models.Application) =
-    Props(classOf[actors.Application], dbApplication)
+  def getApplicationActorProps(dbApplication:models.Application): Option[Props] =
+
+    applicationActors.get( dbApplication.gid ).map { applicationClass =>
+      Props( applicationClass, dbApplication )
+    }
+
 
   def processLoginOrUserCreateRequest(request: Request) = {
     // log the user in, retrieve and id and broadcast the message
