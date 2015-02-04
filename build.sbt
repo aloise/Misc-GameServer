@@ -13,7 +13,8 @@ scalaVersion := "2.11.4"
 
 libraryDependencies ++= Seq(
   "org.reactivemongo" %% "play2-reactivemongo" % "0.10.5.0.akka23",
-  "io.backchat.inflector" %% "scala-inflector" % "1.3.5"
+  "io.backchat.inflector" %% "scala-inflector" % "1.3.5",
+  "org.julienrf" %% "play-json-variants" % "1.1.0"
 )
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
