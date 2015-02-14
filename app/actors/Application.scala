@@ -443,7 +443,8 @@ abstract class Application( application:models.Application) extends Actor {
     // pass the event to the corresponding game
     case r@actors.messages.GeneralRequest( _, sessionId, _, Some(gameId), _, _ )
       if games.contains( BSONObjectID( gameId )) && users.contains(sessionId) =>
-        games( BSONObjectID( gameId ))._2 ! r
+        // decode the message and sent to the game Actor
+        games( BSONObjectID( gameId ))._2 ! decodeGameRequest( r )
 
 
 
@@ -511,6 +512,10 @@ abstract class Application( application:models.Application) extends Actor {
 
   // TODO override this method for specific games
   def getGameActorProps( gameProfile:models.Game, app:ActorRef = context.self ):Option[Props]
+
+  def decodeGameRequest( r:Request ):DecodedApplicationRequest = {
+    DecodedApplicationRequest( r.event, r.sessionId, r.applicationId, r.gameId, r.date, r.data, r.data )
+  }
 
 
 }

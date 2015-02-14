@@ -1,13 +1,14 @@
 package actors.applications.dixie
 
 import actors.Application
-import actors.messages.{Response, Request}
+import play.modules.reactivemongo.json.BSONFormats._
+import actors.messages.{DecodedApplicationRequest, Response, Request}
 import akka.actor.{Props, ActorRef}
 import play.api.libs.json._
 import play.api.libs.json.Reads._
 import play.api.libs.functional.syntax._
 import reactivemongo.bson._
-
+import julienrf.variants.Variants
 
 /**
  * User: aloise
@@ -37,35 +38,62 @@ class DixieApplication( application:models.Application ) extends Application( ap
     Some( Props(classOf[actors.applications.dixie.DixieGame], app, gameProfile, cards ) )
   }
 
+  override def decodeGameRequest( r:Request ):DecodedApplicationRequest = {
+    val data = ( r.data match {
+      case j@JsObject( _ ) =>
+        j
+      case _ =>
+        Json.obj()
+    } ) ++ Json.obj( "event" -> r.event )
+
+    Messages.requestMessageFormat.reads( data ) match {
+      case JsSuccess( any, _ ) =>
+        DecodedApplicationRequest( r.event, r.sessionId, r.applicationId, r.gameId, r.date, r.data, any )
+      case _ =>
+        super.decodeGameRequest(r)
+    }
+
+  }
+
 }
 
 object DixieApplication {
 
+
+  trait GeneralRequest
 
   case class GameCard(id:String, name:String, image:String)
 
 
   object Messages {
 
-    /*
-    case class UserGameCard( cards : GameCard )  extends Response( ) // to all
+    sealed trait GeneralRequest
+    sealed trait GeneralResponse
 
-    case class UserGameTurn( userId: BSONObjectID ) extends Response ( ) // how's turn is it currently - sent to all
 
-    case class UserGameStep( cardId:String, text:String ) extends Request()
+    case class UserGameCard( cards : GameCard )  extends GeneralResponse // to all
 
-    case class UserGameStepMessageRequest( userId: BSONObjectID, text:String ) extends Response() // card text is sent to all
+    case class UserGameTurn( userId: BSONObjectID ) extends GeneralResponse // how's turn is it currently - sent to all
 
-    case class UserGameStepMessageResponse( cardId:String ) extends Request() // sent from every use, cards are hidden.
+    case class UserGameStep( cardId:String, text:String ) extends GeneralRequest
 
-    case class GameTurnVoteStart( text:String, cardsChoosen:Seq[String] ) extends Response() // sent to all users
+    case class UserGameStepMessageRequest( userId: BSONObjectID, text:String ) extends GeneralResponse // card text is sent to all
 
-    case class GameTurnVoteForCard( cardId:String ) extends Request() // user choses a best card
+    case class UserGameStepMessageResponse( cardId:String ) extends GeneralRequest // sent from every use, cards are hidden.
 
-    case class GameTurnVoteResults( voteResults: Map[String,Int], userVotes:Map[String,BSONObjectID], userPoints: Seq[] ) // how much votes summary for every cards,  who voted for what
+    case class GameTurnVoteStart( text:String, cardsChoosen:Seq[String] ) extends GeneralResponse // sent to all users
+
+    case class GameTurnVoteForCard( cardId:String ) extends GeneralRequest // user chooses a best card
+
+    // how much votes summary for every cards,  who voted for what
+    case class GameTurnVoteResults( voteResults: Map[String,Int], userVotes:Map[String,BSONObjectID], userPoints: Map[String,Int] ) extends GeneralRequest
 
     // next game turn starts
-    */
+
+    implicit val gameCardFormat = Json.format[GameCard]
+    implicit val requestMessageFormat: Format[GeneralRequest] = Variants.format[GeneralRequest]("event")
+    implicit val responseMessageFormat: Format[GeneralResponse] = Variants.format[GeneralResponse]("event")
+
 
   }
 }

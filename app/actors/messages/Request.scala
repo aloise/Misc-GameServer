@@ -37,3 +37,13 @@ case class GeneralRequest (
    override val date:Date,
    override val data:JsValue // event data
 ) extends Request
+
+case class DecodedApplicationRequest (
+  override val event:String, // event name
+  override val sessionId: SessionId,
+  override val applicationId:Option[String], // target application id
+  override val gameId:Option[String], // target game id
+  override val date:Date,
+  override val data:JsValue, // event data JS
+  decodedData:Any
+) extends Request

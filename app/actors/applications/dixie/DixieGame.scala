@@ -34,6 +34,7 @@ class DixieGame(application:ActorRef, game:models.Game, cards: Map[String,GameCa
   def gameMessageReceive:Receive = {
     case _ =>
   }
+
 }
 
 object DixieGame {
