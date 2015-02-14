@@ -24,6 +24,9 @@ import scala.concurrent.duration._
  */
 class DixieGame(application:ActorRef, game:models.Game, cards: Map[String,GameCard]) extends Game(application, game) {
 
+  import DixieApplication._
+  import DixieApplication.Messages._
+
   val userTurnAwaitTime = 300.seconds// seconds - read from config - system select for himself randomly
   var currentTurn:Byte = 0
 
@@ -34,7 +37,6 @@ class DixieGame(application:ActorRef, game:models.Game, cards: Map[String,GameCa
   def gameMessageReceive:Receive = {
     case _ =>
   }
-
 }
 
 object DixieGame {

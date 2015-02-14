@@ -517,7 +517,6 @@ abstract class Application( application:models.Application) extends Actor {
     DecodedApplicationRequest( r.event, r.sessionId, r.applicationId, r.gameId, r.date, r.data, r.data )
   }
 
-
 }
 
 object Application {
