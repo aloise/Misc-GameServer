@@ -7,7 +7,7 @@ import org.joda.time.DateTime
 import scala.collection.mutable
 import actors.messages.UserSession._
 import actors.messages._
-import models.ApplicationProfile
+import models.{GameProfile, ApplicationProfile}
 import play.api.libs.json.{JsObject, JsValue, JsString, Json}
 import scala.concurrent.Future
 import reactivemongo.bson.BSONObjectID
@@ -31,17 +31,18 @@ class DixieGame(application:ActorRef, game:models.Game, cards: Map[String,GameCa
   var currentTurn:Byte = 0
 
 
-  override def receive = gameMessageReceive orElse super.receive
+  override def receive = beforeGameStart orElse super.receive
+
+  def beforeGameStart:Receive = {
+    case _ =>
+  }
 
 
   def gameMessageReceive:Receive = {
     case _ =>
   }
-}
 
-object DixieGame {
-
-
-
-
+  def isUserAllowedToJoin(session: UserSession, applicationProfile: ApplicationProfile, gameProfile: GameProfile): Future[Boolean] = {
+    Future.successful(true)
+  }
 }

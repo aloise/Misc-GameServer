@@ -1,13 +1,14 @@
 package actors
 
 
+import actors.Game.GameJoinException
 import akka.actor._
 import org.joda.time.DateTime
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import actors.messages.UserSession._
 import actors.messages._
-import models.ApplicationProfile
+import models.{GameProfile, ApplicationProfile}
 import play.api.libs.json.{JsObject, JsValue, JsString, Json}
 import scala.concurrent.Future
 import reactivemongo.bson.BSONObjectID
@@ -43,9 +44,6 @@ abstract class Game(application:ActorRef, game:models.Game) extends Actor {
     case Game.UserJoin( userSession, appProfile, isCreator ) =>
       gameUserJoin( userSession, appProfile, isCreator)
 
-      if( isCreator ){
-        creator = Some(userSession)
-      }
 
 
     case c@ChatMessage( _,_, _, _, _, _, _, recipient, _ ) =>
@@ -159,7 +157,7 @@ abstract class Game(application:ActorRef, game:models.Game) extends Actor {
     Application.GameDataUpdated( game.copy( status = status, creatorGameProfileId = creatorGameProfileIdOpt ), creatorOpt, users )
   }
 
-  def gameUserJoin(userSession: UserSession, appProfile: ApplicationProfile, isCreator: Boolean): Unit = {
+  def gameUserJoin(userSession: UserSession, appProfile: ApplicationProfile, isCreator: Boolean): Future[SessionId] = {
     // TODO - Implement a check. We may decline a user join attempt excluding the creator
 
     status match {
@@ -168,50 +166,68 @@ abstract class Game(application:ActorRef, game:models.Game) extends Actor {
 
           val gameProfileF = getGameProfileForUser(appProfile)
 
-          gameProfileF onComplete {
-            case Success( gameProfile ) =>
+          gameProfileF flatMap { gameProfile =>
 
-              users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
+              isUserAllowedToJoin( userSession, appProfile, gameProfile ) map {
+                case true =>
+                  users = users + ( userSession.sessionId -> ( userSession, appProfile, gameProfile ) )
 
-              // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
-              val jsonData = Json.obj(
-                "game" -> game,
-                "gameProfile" -> gameProfile,
-                "users" -> users.values.map {
-                  case ( sess2, appProfile2, gameProfile2 ) =>
-                    Json.obj(
-                      "user" -> sess2.user,
-                      "applicationProfile" -> appProfile2,
-                      "gameProfile" -> gameProfile2
-                    )
-                }
-              )
+                  // userSession.userActor ! Game.UserJoinedSuccessfully( userSession.sessionId, game, gameProfile )
+                  val jsonData = Json.obj(
+                    "game" -> game,
+                    "gameProfile" -> gameProfile,
+                    "users" -> users.values.map {
+                      case ( sess2, appProfile2, gameProfile2 ) =>
+                        Json.obj(
+                          "user" -> sess2.user,
+                          "applicationProfile" -> appProfile2,
+                          "gameProfile" -> gameProfile2
+                        )
+                    }
+                  )
 
-              // notify all existing users
-              users.values.foreach { case ( notifySession, _, _ ) =>
-                notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
+                  // notify all existing users
+                  users.values.foreach { case ( notifySession, _, _ ) =>
+                    notifySession.userActor ! Response( Game.Message.gameJoin, notifySession.sessionId, jsonData )
+                  }
+
+                  application ! Application.GameUserJoined( game._id, userSession.sessionId )
+                  application ! getGameDataMessage
+
+                  // userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
+
+                  if( isCreator ){
+                    creator = Some(userSession)
+                  }
+
+                  userSession.sessionId
+
+                case false =>
+                  // it's not allowed to join
+                  throw new Game.GameJoinException("not_allowed_to_join")
               }
 
 
 
-              application ! Application.GameUserJoined( game._id, userSession.sessionId )
-              application ! getGameDataMessage
-
-              // userSession.userActor ! Response( Game.Message.gameJoin, userSession.sessionId, jsonData )
 
 
-            case Failure( t ) =>
+          } recover {
+            case t:Throwable =>
               userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, t.getMessage )
+              throw t
           }
 
       case _ =>
-        val msg = "game_is_not_in_waiting_state"
-        application ! Application.GameUserJoinFailed( game._id, userSession.sessionId, new Game.GameJoinException( msg ) )
-        userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, msg )
+        val ex = new Game.GameJoinException( "game_is_not_in_waiting_state" )
+        application ! Application.GameUserJoinFailed( game._id, userSession.sessionId, ex )
+        userSession.userActor ! ErrorResponse( Game.Message.gameJoin, userSession.sessionId, ex.getMessage )
+        Future.failed(ex)
     }
 
 
   }
+
+  def isUserAllowedToJoin( session:UserSession, applicationProfile:ApplicationProfile, gameProfile:GameProfile ) :Future[Boolean]
 
   def getGameProfileForUser(appProfile: ApplicationProfile): Future[models.GameProfile] =
     models.Games.collection.

@@ -31,7 +31,8 @@ class DixieApplication( application:models.Application ) extends Application( ap
   override def receive:Receive = receiveNormal orElse super.receive
 
   def receiveNormal:Receive = {
-    case _ =>
+    case "test" =>
+      println("DixieApplication::test")
   }
 
   override def getGameActorProps( gameProfile:models.Game, app:ActorRef = context.self ):Option[Props] = {

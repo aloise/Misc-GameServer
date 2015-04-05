@@ -28,7 +28,7 @@ class Gateway extends Actor {
   import models.Applications.format
 
   val applicationActors = Map[String, Class[ _ <: actors.Application ]](
-    "1" -> classOf[actors.applications.dixie.DixieApplication]
+    "dixie" -> classOf[actors.applications.dixie.DixieApplication]
 //    "2" ->
   )
 
