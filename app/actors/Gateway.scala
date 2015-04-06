@@ -74,9 +74,9 @@ class Gateway extends Actor {
 
     case Gateway.ApplicationCreate(appId) =>
 
-      models.Applications.find( Json.obj("gid" -> appId ) ).map { apps =>
-        apps.headOption.map { app =>
-            getApplicationActorProps(app).map { applicationActorProps =>
+      models.Applications.find( Json.obj("gid" -> appId ) ).foreach { apps =>
+        apps.headOption.foreach { app =>
+            getApplicationActorProps(app).foreach { applicationActorProps =>
               val applicationActor = context.actorOf( applicationActorProps )
               applications = applications + ( app.gid -> ( app, applicationActor ) )
 
